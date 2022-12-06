@@ -10,20 +10,47 @@
  */
 
 /*
-
 OBJETIVOS CURTO PRAZO
   [x] - Calibrar bombas peristalticas 09/11/2022 - 23/11/2022
   [x] - Implementar sensor de temperatura 09/11/2022 - 11/11/2022
   [] - Controlar valvula solenoide com sensor de nivel
   [x] - Prender projeto em uma placa de madeira 09/11/2022 - 09/11/2022
-
 OBJETIVOS LONGO PRAZO
   [] - Testar resistencia
   [] - Testar contatora
-
 MELHORIAS DO PRODUTO
   [] - Ciclo de enxague customizado
   [] - Display simplificado de acesso
+
+
+  ========= ciclo padrao
+  void ciclo_CIP(){
+    rotina de enxague()
+    rotina alcalina()
+    rotina enxagueTanque()
+    rotina acida()
+    rotina sanitizante()
+  }
+
+  void cliclo_Custom(){
+    salvar o ciclo em um array e com um loop for comparar cada posicao
+    se assimilar um valor pro tipo de lavagem ex:
+    1 - rotina de enxague()
+    2 - rotina alcalina()
+    3 - rotina enxagueTanque()
+    4 - rotina acida()
+    5 - rotina sanitizante()
+
+    usar if para verificar cada uma das lavagens
+    ex:
+    for(int i=0; i<sizeof(vetor); i++){
+      if(vetor[i]==1){ rotina de enxague()}
+      if(vetor[i]==2){ rotina alcalina()}
+      if(vetor[i]==3){ rotina enxagueTanque()}
+      if(vetor[i]==4){ rotina acida()}
+      if(vetor[i]==5){ rotina sanitizante()}
+    }
+  }
 */
 
 #include <Arduino.h>
