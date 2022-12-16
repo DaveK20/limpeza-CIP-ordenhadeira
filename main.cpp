@@ -10,47 +10,20 @@
  */
 
 /*
+
 OBJETIVOS CURTO PRAZO
   [x] - Calibrar bombas peristalticas 09/11/2022 - 23/11/2022
   [x] - Implementar sensor de temperatura 09/11/2022 - 11/11/2022
-  [] - Controlar valvula solenoide com sensor de nivel
+  [x] - Controlar valvula solenoide com sensor de nivel 23/11/2022 - 15/12/2022
   [x] - Prender projeto em uma placa de madeira 09/11/2022 - 09/11/2022
+
 OBJETIVOS LONGO PRAZO
   [] - Testar resistencia
   [] - Testar contatora
+
 MELHORIAS DO PRODUTO
   [] - Ciclo de enxague customizado
   [] - Display simplificado de acesso
-
-
-  ========= ciclo padrao
-  void ciclo_CIP(){
-    rotina de enxague()
-    rotina alcalina()
-    rotina enxagueTanque()
-    rotina acida()
-    rotina sanitizante()
-  }
-
-  void cliclo_Custom(){
-    salvar o ciclo em um array e com um loop for comparar cada posicao
-    se assimilar um valor pro tipo de lavagem ex:
-    1 - rotina de enxague()
-    2 - rotina alcalina()
-    3 - rotina enxagueTanque()
-    4 - rotina acida()
-    5 - rotina sanitizante()
-
-    usar if para verificar cada uma das lavagens
-    ex:
-    for(int i=0; i<sizeof(vetor); i++){
-      if(vetor[i]==1){ rotina de enxague()}
-      if(vetor[i]==2){ rotina alcalina()}
-      if(vetor[i]==3){ rotina enxagueTanque()}
-      if(vetor[i]==4){ rotina acida()}
-      if(vetor[i]==5){ rotina sanitizante()}
-    }
-  }
 */
 
 #include <Arduino.h>
@@ -68,6 +41,7 @@ void controleTemperatura();
 void ControleBomba();
 void valvula();
 float calcSolucao(float);
+void cicloCIP();
 
 // CONTROLE BOMBAS PERISTALTICAS
 int relayAcid = 2;
@@ -78,6 +52,11 @@ int relaySanit = 4;
 float bombaAcid = 2.5;
 float bombaAlc = 0.75;
 float bombaSanit = 0; // ainda nao descoberto
+
+// TEMPERATURAS IDEAIS DAS SOLUCOES
+float tempBase = 75;
+float tempAcido = 43;
+float tempSanitizante;
 
 /*
   23/11/2022 - Calibração das bombas peristálticas com copo graduado impreciso
@@ -97,6 +76,8 @@ void setup()
   pinMode(relayAcid, OUTPUT);
   pinMode(relayAlc, OUTPUT);
   pinMode(relaySanit, OUTPUT);
+  pinMode(7, OUTPUT);
+
   Serial.println("Inicializando sistema...");
   sensors.begin();
 }
@@ -117,6 +98,89 @@ void loop()
   Serial.println(sensorTemperatura());
   delay(3000);
   */
+}
+
+void adicionarAcido()
+{
+  estadoBombas(LOW, HIGH, HIGH);
+  delay(calcSolucao(bombaAcid));
+  estadoBombas(HIGH, HIGH, HIGH);
+}
+
+void adicionarBase()
+{
+  estadoBombas(HIGH, LOW, HIGH);
+  delay(calcSolucao(bombaAlc));
+  estadoBombas(HIGH, HIGH, HIGH);
+}
+
+void adicionarSanitizante()
+{
+  estadoBombas(HIGH, HIGH, LOW);
+  delay(calcSolucao(bombaSanit));
+  estadoBombas(HIGH, HIGH, HIGH);
+}
+
+/**
+ * @brief responsavel por encher o tanque
+ *
+ */
+void encherTanque()
+{
+  Serial.println("Enchendo tanque...");
+  /*while(boia sem contato){
+    encher tanque
+  }
+  estadoTanque = true*/
+}
+
+void aquecerResistencia(float tempAgua)
+{
+  Serial.println("Ligando resistencia");
+  /*while(temperatura < tempAgua && estadoTanque == true){
+    aquecer agua
+  }*/
+}
+
+void misturar()
+{
+  Serial.println("Misturando Solucao");
+  /* misturando solucao
+  digitalWrite(relayMistura);
+  delay(tempo especifico de mistura)*/
+}
+
+void liberarAgua()
+{
+  /*if(temperatura == 75){
+    digitalWrite(JogaNoSistema, LOW)
+    delay(tempo necessario para despejar 50L)
+  }
+  digitalWrite(JogaNoSistema, LOW)*/
+}
+
+void cicloCIP()
+{
+  ////////////////// ciclo base //////////////////
+
+  encherTanque();               // adicionar agua
+  adicionarBase();              // adicionar solucao
+  aquecerResistencia(tempBase); // aquecer
+  liberarAgua();                // liberar apos atingir temperatura
+
+  ////////////////// ciclo acido //////////////////
+
+  encherTanque();                // adicionar agua
+  adicionarAcido();              // adicionar solucao
+  aquecerResistencia(tempAcido); // aquecer
+  liberarAgua();                 // liberar apos atingir temperatura
+
+  ////////////////// ciclo sanitizante //////////////////
+
+  encherTanque();                      // adicionar agua
+  adicionarSanitizante();              // adicionar solucao
+  aquecerResistencia(tempSanitizante); // aquecer
+  liberarAgua();                       // liberar apos atingir temperatura
 }
 
 /**
