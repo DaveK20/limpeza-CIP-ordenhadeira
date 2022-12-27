@@ -30,23 +30,29 @@ MELHORIAS DO PRODUTO
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
-#define tempSensor 5 // DS18B20
-
-OneWire oneWire(tempSensor);
-DallasTemperature sensors(&oneWire); /*encaminha referências OneWire para o sensor*/
-
 void estadoBombas(uint8_t, uint8_t, uint8_t);
-float sensorTemperatura();
+void adicionarSolucao(float solucao, int relay);
 void controleTemperatura();
 void ControleBomba();
 void valvula();
-float calcSolucao(float);
 void cicloCIP();
+void printInformacoes();
+float sensorTemperatura();
+float calcSolucao(float);
 
-// CONTROLE BOMBAS PERISTALTICAS
-int relayAcid = 2;
-int relayAlc = 3;
-int relaySanit = 4;
+// CONTROLE RELAYS
+#define relayAcid 2
+#define relayAlc 3
+#define relaySanit 4
+#define relayBoia 6
+#define relayDespejarAgua 7
+
+// PINOS LEITURA
+#define tempSensor 5 // DS18B20
+OneWire oneWire(tempSensor);
+DallasTemperature sensors(&oneWire); /*encaminha referências OneWire para o sensor*/
+
+#define tempo_esvaziar_tanque 180000
 
 // VOLUME DE SOLUCAO A SER INSERIDO
 float bombaAcid = 2.5;
@@ -56,7 +62,7 @@ float bombaSanit = 0; // ainda nao descoberto
 // TEMPERATURAS IDEAIS DAS SOLUCOES
 float tempBase = 75;
 float tempAcido = 43;
-float tempSanitizante;
+float tempSanitizante = 0;
 
 /*
   23/11/2022 - Calibração das bombas peristálticas com copo graduado impreciso
@@ -70,13 +76,18 @@ int ml_inserido = 200; // volume inserido como teste
 bool teste = false;                               // finalizar o funcionamento da bomba
 float bomba_delay = (ml_inserido / um_ml) * 1000; // calculo de despejo da bomba
 
+#define COLETA_DELAY 3000
+unsigned long tempo_ultima_coleta;
+
 void setup()
 {
   Serial.begin(9600);
   pinMode(relayAcid, OUTPUT);
   pinMode(relayAlc, OUTPUT);
   pinMode(relaySanit, OUTPUT);
-  pinMode(7, OUTPUT);
+  pinMode(relayBoia, INPUT_PULLUP);
+
+  estadoBombas(HIGH, HIGH, HIGH);
 
   Serial.println("Inicializando sistema...");
   sensors.begin();
@@ -84,6 +95,7 @@ void setup()
 
 void loop()
 {
+  /*
   if (teste == false)
   {
     estadoBombas(LOW, LOW, LOW);
@@ -92,56 +104,73 @@ void loop()
   }
   estadoBombas(HIGH, HIGH, HIGH);
   teste = true;
-
-  /*
-  Serial.print("TempC: ");
-  Serial.println(sensorTemperatura());
-  delay(3000);
   */
+
+  if ((millis() - tempo_ultima_coleta) > COLETA_DELAY)
+  {
+    printInformacoes();
+    tempo_ultima_coleta = millis();
+  }
 }
 
-void adicionarAcido()
+/**
+ * @brief Controle da injecao de solucao na agua
+ *
+ * @param solucao a ser adicionada
+ * @param relay a ser ativado 1 - Acido || 2 - Base
+ */
+void adicionarSolucao(float solucao, int relay)
 {
-  estadoBombas(LOW, HIGH, HIGH);
-  delay(calcSolucao(bombaAcid));
-  estadoBombas(HIGH, HIGH, HIGH);
-}
+  if (relay == 1)
+  {
+    estadoBombas(LOW, HIGH, HIGH);
+  }
 
-void adicionarBase()
-{
-  estadoBombas(HIGH, LOW, HIGH);
-  delay(calcSolucao(bombaAlc));
-  estadoBombas(HIGH, HIGH, HIGH);
-}
+  if (relay == 2)
+  {
+    estadoBombas(HIGH, LOW, HIGH);
+  }
 
-void adicionarSanitizante()
-{
-  estadoBombas(HIGH, HIGH, LOW);
-  delay(calcSolucao(bombaSanit));
+  if (relay == 3)
+  {
+    estadoBombas(HIGH, HIGH, LOW);
+  }
+  delay(calcSolucao(solucao));
   estadoBombas(HIGH, HIGH, HIGH);
 }
 
 /**
- * @brief responsavel por encher o tanque
+ * @brief Enche o tanque de agua
  *
  */
 void encherTanque()
 {
   Serial.println("Enchendo tanque...");
-  /*while(boia sem contato){
-    encher tanque
+  while (relayBoia == HIGH)
+  {
   }
-  estadoTanque = true*/
+  Serial.println("Tanque Cheio");
 }
 
+/**
+ * @brief Liga a resistencia, e aquece a agua na temperatura inserida
+ *
+ * @param tempAgua
+ */
 void aquecerResistencia(float tempAgua)
 {
   Serial.println("Ligando resistencia");
+  delay(10000);
   /*while(temperatura < tempAgua && estadoTanque == true){
     aquecer agua
   }*/
+  Serial.println("Agua aquecida");
 }
 
+/**
+ * @brief Ativa misturador da agua com solucao
+ *
+ */
 void misturar()
 {
   Serial.println("Misturando Solucao");
@@ -150,6 +179,10 @@ void misturar()
   delay(tempo especifico de mistura)*/
 }
 
+/**
+ * @brief Despeja mistura no sistema
+ *
+ */
 void liberarAgua()
 {
   /*if(temperatura == 75){
@@ -159,26 +192,30 @@ void liberarAgua()
   digitalWrite(JogaNoSistema, LOW)*/
 }
 
+/**
+ * @brief Controle do ciclo automatico de limpeza da ordenhadeira
+ *
+ */
 void cicloCIP()
 {
   ////////////////// ciclo base //////////////////
 
-  encherTanque();               // adicionar agua
-  adicionarBase();              // adicionar solucao
-  aquecerResistencia(tempBase); // aquecer
-  liberarAgua();                // liberar apos atingir temperatura
+  encherTanque();                // adicionar agua
+  adicionarSolucao(bombaAlc, 1); // adicionar solucao
+  aquecerResistencia(tempBase);  // aquecer
+  liberarAgua();                 // liberar apos atingir temperatura
 
   ////////////////// ciclo acido //////////////////
 
-  encherTanque();                // adicionar agua
-  adicionarAcido();              // adicionar solucao
-  aquecerResistencia(tempAcido); // aquecer
-  liberarAgua();                 // liberar apos atingir temperatura
+  encherTanque();                 // adicionar agua
+  adicionarSolucao(bombaAcid, 2); // adicionar solucao
+  aquecerResistencia(tempAcido);  // aquecer
+  liberarAgua();                  // liberar apos atingir temperatura
 
   ////////////////// ciclo sanitizante //////////////////
 
   encherTanque();                      // adicionar agua
-  adicionarSanitizante();              // adicionar solucao
+  adicionarSolucao(bombaSanit, 3);     // adicionar solucao
   aquecerResistencia(tempSanitizante); // aquecer
   liberarAgua();                       // liberar apos atingir temperatura
 }
@@ -206,16 +243,16 @@ float sensorTemperatura()
   return sensors.getTempCByIndex(0); // temp do sensor indice 0
 }
 /**
- * @brief Controle das tres bombas peristalticas HIGH - Desativado LOW - Ativado
+ * @brief Controle das tres bombas peristalticas HIGH - Desativado || LOW - Ativado
  *
  * @param bombaAcid
  * @param bombaAlc
  * @param bombaSanit
  */
-void estadoBombas(uint8_t bombaAcid, uint8_t bombaAlc, uint8_t bombaSanit)
+void estadoBombas(uint8_t bombaAlc, uint8_t bombaAcid, uint8_t bombaSanit)
 {
-  digitalWrite(relayAcid, bombaAcid);
-  digitalWrite(relayAlc, bombaAlc);
+  digitalWrite(relayAcid, bombaAlc);
+  digitalWrite(relayAlc, bombaAcid);
   digitalWrite(relaySanit, bombaSanit);
 }
 
@@ -225,8 +262,8 @@ void estadoBombas(uint8_t bombaAcid, uint8_t bombaAlc, uint8_t bombaSanit)
  */
 void printInformacoes()
 {
-  Serial.println("");
-  Serial.println("");
+  Serial.println("||----------------Monitoramento---------------||");
+  Serial.print("BOMBA PERISTALTICA: ");
   if (digitalRead(relayAcid) == LOW)
   {
     Serial.println("adicionando acido...");
@@ -240,6 +277,25 @@ void printInformacoes()
     Serial.println("adicionando sanitizante...");
   }
 
-  Serial.println("Temp Agua:");
-  Serial.println("Temp Tanque:");
+  if (digitalRead(relayAcid) == HIGH || digitalRead(relayAlc) == HIGH || digitalRead(relaySanit) == HIGH)
+  {
+    Serial.println("desligada.");
+  }
+
+  Serial.print("BOIA: ");
+
+  if (digitalRead(relayBoia) == HIGH)
+  {
+    Serial.println("Tanque vazio/esvaziando");
+  }
+  else
+  {
+    Serial.println("Acionada tanque cheio");
+  }
+
+  Serial.print("TEMP AGUA: ");
+  Serial.println(sensorTemperatura());
+  Serial.print("TEMP TANQUE: ");
+  Serial.println("Sem sensor");
+  Serial.println();
 }
