@@ -2,8 +2,8 @@
  * @file main.cpp
  * @author DaveK2 (davefr@outlook.com.br)
  * @brief CIP ordenhadeira Campus Bom Jesus do Itabapoana
- * @version 0.3
- * @date 2023-01-01
+ * @version 0.4
+ * @date 2023-01-04
  *
  * @copyright Copyright (c) 2023
  *
@@ -11,14 +11,11 @@
 
 /*
 OBJETIVOS CURTO PRAZO
-  [x] - Calibrar bombas peristalticas 09/11/2022 - 23/11/2022
-  [x] - Implementar sensor de temperatura 09/11/2022 - 11/11/2022
-  [x] - Controlar valvula solenoide com sensor de nivel 23/11/2022 - 15/12/2022
-  [x] - Prender projeto em uma placa de madeira 09/11/2022 - 09/11/2022
-  [] - Ter uma nocao do tempo necessario para esvaziar o tanque e mostrar no display
+  [] - Ter uma nocao do tempo necessario para esvaziar o tanque e mostrar no display 
   [] - Aperfeicoar ciclo CIP
+  [] - iniciar trabalhos no ciclo personalizado
+  
 OBJETIVOS LONGO PRAZO
-
   [] - Testar resistencia
   [] - Testar contatora
 MELHORIAS DO PRODUTO
@@ -32,33 +29,35 @@ MELHORIAS DO PRODUTO
 
 void estadoBombas(uint8_t, uint8_t, uint8_t);
 void adicionarSolucao(float solucao, int relay);
-void controleTemperatura();
-void ControleBomba();
-void valvula();
 void cicloCIP();
-void misturar();
+void misturar(uint8_t);
+void aquecerResistencia(uint8_t);
 void printInformacoes();
 void encherTanque();
 void esvaziarTanque(float);
 void rotinaPreEnxague();
-void statusTanque();
+void statusBoia_ISR();
 float tempAgua();
 float calcSolucao(float);
+void funcaoBotao1();
+void interromperOperacao();
 
 // CONTROLE RELAYS
-#define relayAcid 2
-#define relayAlc 3
-#define relaySanit 4
-#define relayBoia 6 // futuramente substituir pelo ultrassonico se necessario
+#define relayBoia 3 // futuramente substituir pelo ultrassonico se necessario
+#define relayAlc 4
+#define relayAcid 5
+#define relaySanit 6
 #define relayEncherTanque 7
 #define relayEsvaziarTanque 8
+#define relayMisturador 9
+#define relayResistencia 10
+#define pushButton1 12
+#define interruptPushButton 2
 
 // PINOS LEITURA
-#define tempSensor 5 // DS18B20
+#define tempSensor 11 // DS18B20
 OneWire oneWire(tempSensor);
 DallasTemperature sensors(&oneWire); // encaminha referências OneWire para o sensor
-
-#define tempo_esvaziar_tanque 180000
 
 // VOLUME DE SOLUCAO A SER INSERIDO
 float bombaAcid = 2.5;
@@ -66,24 +65,24 @@ float bombaAlc = 0.75;
 float bombaSanit = 0; // ainda nao descoberto
 
 // TEMPERATURAS IDEAIS DA AGUA
-float tempBase = 75;         // solucao base
-float tempAcido = 43;        // solucao acida
-float tempSanitizante = 0;   // solucao sanitizante
-float tempIntermitente = 55; // temperatura da agua em lavagens intermitente
+float tempBase = 75;       // solucao base
+float tempAcido = 43;      // solucao acida
+float tempSanitizante = 0; // solucao sanitizante
+float tempPreEnxague = 55; // temperatura da agua em lavagens intermitente
 
 /*
   23/11/2022 - Calibração das bombas peristálticas com copo graduado impreciso
   100ml ~ 65 segundos
   aproximadamente 1,538 ml/s
   */
-float um_ml = 1.66; // volume de despejado por 1s
-
-int ml_inserido = 200; // volume inserido como teste
-
-bool teste = false;                               // finalizar o funcionamento da bomba
+float um_ml = 1.66;                               // volume de despejado por 1s
+float ml_inserido = 200;                          // volume inserido como teste
 float bomba_delay = (ml_inserido / um_ml) * 1000; // calculo de despejo da bomba
 
+#define DELAY_ESVAZIAR_TANQUE 18000
 #define COLETA_DELAY 3000
+bool interromper = false;
+
 unsigned long tempo_ultima_coleta;
 
 void setup()
@@ -92,9 +91,20 @@ void setup()
   pinMode(relayAcid, OUTPUT);
   pinMode(relayAlc, OUTPUT);
   pinMode(relaySanit, OUTPUT);
+  pinMode(relayEncherTanque, OUTPUT);
+  pinMode(relayEsvaziarTanque, OUTPUT);
+  pinMode(relayMisturador, OUTPUT);
+  pinMode(relayResistencia, OUTPUT);
   pinMode(relayBoia, INPUT_PULLUP);
+  pinMode(pushButton1, INPUT);
+  pinMode(interruptPushButton, INPUT);
+  attachInterrupt(digitalPinToInterrupt(interruptPushButton), interromperOperacao, CHANGE);
 
   estadoBombas(HIGH, HIGH, HIGH);
+  digitalWrite(relayEncherTanque, HIGH);
+  digitalWrite(relayEsvaziarTanque, HIGH);
+  digitalWrite(relayMisturador, HIGH);
+  digitalWrite(relayResistencia, HIGH);
 
   Serial.println("Inicializando sistema...");
   sensors.begin();
@@ -118,22 +128,47 @@ void loop()
     printInformacoes();
     tempo_ultima_coleta = millis();
   }
+
+  if (digitalRead(pushButton1) == HIGH)
+  {
+    cicloCIP();
+  }
+}
+
+void interromperOperacao()
+{
+  Serial.println("cheguei na interrupcao");
+  interromper = true;
 }
 
 /**
  * @brief Enche o tanque de agua
  *
+ * @param resistencia se igual a 1 aquece resistencia
  */
-void encherTanque()
+void encherTanque(int resistencia)
 {
-  Serial.println("Enchendo tanque...");
-  // futuramente tambem substituir isso por millis()
-  while (digitalRead(relayBoia) == HIGH)
+  if (interromper == false)
   {
-    digitalWrite(relayEncherTanque, LOW); // despejando agua no tanque
+    Serial.println("Enchendo tanque...");
+    // futuramente tambem substituir isso por millis()
+    while (digitalRead(relayBoia) == HIGH)
+    {
+      digitalWrite(relayResistencia, HIGH);
+      digitalWrite(relayEncherTanque, LOW); // despejando agua no tanque
+    }
+    digitalWrite(relayEncherTanque, HIGH); // fechando valvula
+    Serial.println("Tanque Cheio");
+    misturar(LOW);
+    if (resistencia == 1)
+    {
+      aquecerResistencia(LOW); // ligar resistencia
+    }
+    else
+    {
+      aquecerResistencia(HIGH); // desligar resistencia
+    }
   }
-  Serial.println("Tanque Cheio");
-  delay(1000);
 }
 
 /**
@@ -143,40 +178,47 @@ void encherTanque()
  */
 void esvaziarTanque(float tempSolucao)
 {
-  Serial.println("Despejando agua");
-  /*
-  if (tempAgua() == tempSolucao)
+  if (interromper == false)
   {
-    digitalWrite(relayEncherTanque, LOW);
+    /*
+  if (tempAgua() == tempSolucao && digitalRead(relayBoia) == LOW)
+  {
+    aquecerResistencia(HIGH); // aquecer
+    misturar(HIGH);
+    digitalWrite(relayEsvaziarTanque, LOW);
     delay(1000); // tempo necessario para se liberar totalmente 50L de agua no sistema
   }*/
-  Serial.println("Agua despejada");
-  delay(10000);
-  digitalWrite(relayEsvaziarTanque, HIGH);
-}
-
-/**
- * @brief tempo restante para encher/esvaziar o tanque
- *
- */
-void statusTanque()
-{
-}
-
-/**
- * @brief Ativa misturador da agua com solucao
- *
- */
-void misturar()
-{
-  // realizar essa tarefa em paralelo com outras, aquecer a agua por exemplo
-  Serial.println("Misturando Solucao");
-  /*
-  if(digitalRead(relayBoia) == LOW){
-    digitalWrite(relayMisturador, LOW);
+    misturar(HIGH);
+    aquecerResistencia(HIGH);
+    Serial.println("Despejando agua...");
+    digitalWrite(relayEsvaziarTanque, LOW);
+    delay(DELAY_ESVAZIAR_TANQUE);
+    Serial.println("Agua despejada");
+    digitalWrite(relayEsvaziarTanque, HIGH);
   }
-  delay(tempo especifico de mistura);
-  */
+}
+
+/**
+ * @brief Ativa/desativa misturador da agua com solucao
+ *
+ * @param status HIGH == desligado || LOW == ligado
+ */
+void misturar(uint8_t status)
+{
+  if (interromper == false)
+  {
+    // realizar essa tarefa em paralelo com outras, aquecer a agua por exemplo
+    if (status == LOW)
+    {
+      Serial.println("Ligando misturador");
+      digitalWrite(relayMisturador, LOW);
+    }
+    else
+    {
+      Serial.println("Desligando misturador");
+      digitalWrite(relayMisturador, HIGH);
+    }
+  }
 }
 
 /**
@@ -187,55 +229,117 @@ void misturar()
  */
 void adicionarSolucao(float solucao, int relay)
 {
-  Serial.print("Adicionando solucao ");
-  if (relay == 1)
+  if (interromper == false)
   {
-    Serial.println("acida");
-    estadoBombas(LOW, HIGH, HIGH);
-  }
+    Serial.print("Adicionando solucao ");
+    if (relay == 1)
+    {
+      Serial.println("base");
+      estadoBombas(LOW, HIGH, HIGH);
+    }
 
-  else if (relay == 2)
-  {
-    Serial.println("base");
-    estadoBombas(HIGH, LOW, HIGH);
-  }
+    else if (relay == 2)
+    {
+      Serial.println("acida");
+      estadoBombas(HIGH, LOW, HIGH);
+    }
 
-  else if (relay == 3)
-  {
-    Serial.println("sanitizante");
-    estadoBombas(HIGH, HIGH, LOW);
+    else if (relay == 3)
+    {
+      Serial.println("sanitizante");
+      estadoBombas(HIGH, HIGH, LOW);
+    }
+    delay(calcSolucao(solucao));
+    estadoBombas(HIGH, HIGH, HIGH);
+    Serial.println("Solucao Adicionada!");
+    // reduzir o numero de delays existentes para ganhar tempo no aquecimento
+    // da agua, maior desafio a ser superado ate o momento, utilizar millis() 28/12/2022
   }
-  delay(calcSolucao(solucao));
-  estadoBombas(HIGH, HIGH, HIGH);
-  Serial.println("Solucao Adicionada!");
-  // reduzir o numero de delays existentes para ganhar tempo no aquecimento
-  // da agua, maior desafio a ser superado ate o momento, utilizar millis() 28/12/2022
 }
 
 /**
- * @brief Ligar resistencia, e aquecer agua na temperatura inserida
+ * @brief ligar resistencia
  *
- * @param tempSolucao a ser despejada no tanque
+ * @param status
  */
-void aquecerResistencia(float tempSolucao)
+void aquecerResistencia(uint8_t status)
 {
-  Serial.println("Ligando resistencia");
-  /*
-  while (tempAgua() != tempSolucao)
+  if (interromper == false)
   {
-    // relay de ativacao indefinido
-  }*/
-  delay(10000);
-  Serial.println("Agua aquecida");
+    if (status == LOW)
+    {
+      Serial.println("Ligando resistencia");
+      digitalWrite(relayResistencia, LOW);
+    }
+    else
+    {
+      Serial.println("Desligando resistencia");
+      digitalWrite(relayResistencia, HIGH);
+    }
+  }
 }
 
+/**
+ * @brief Pre lavagem do tanque apos ordenha
+ *
+ */
 void rotinaPreEnxague()
 {
+  Serial.println();
   Serial.println("ETAPA PRE-ENXAGUE");
-  encherTanque();                       // adicionar agua
-  aquecerResistencia(tempIntermitente); // aquecer
-  misturar();
+  encherTanque(1);                // adicionar agua
+  esvaziarTanque(tempPreEnxague); // liberar apos atingir temperatura
+}
+
+/**
+ * @brief lavagem intermitente entre os ciclos acido e base
+ *
+ */
+void rotinaEnxague()
+{
+  Serial.println();
+  Serial.println("ETAPA ENXAGUE");
+  encherTanque(0);          // adicionar agua
   esvaziarTanque(tempBase); // liberar apos atingir temperatura
+}
+
+/**
+ * @brief rotina da solucao base adicionada na agua
+ *
+ */
+void rotinaBase()
+{
+  Serial.println();
+  Serial.println("ETAPA BASE");
+  encherTanque(1);               // adicionar agua
+  adicionarSolucao(bombaAlc, 1); // adicionar solucao
+  esvaziarTanque(tempBase);      // liberar apos atingir temperatura
+}
+
+/**
+ * @brief rotina da solucao acida adicionada na agua
+ *
+ */
+void rotinaAcida()
+{
+  Serial.println();
+  Serial.println("ETAPA ACIDO");
+  encherTanque(1);                // adicionar agua
+  adicionarSolucao(bombaAcid, 2); // adicionar solucao
+  esvaziarTanque(tempAcido);      // liberar apos atingir temperatura
+}
+
+/**
+ * @brief rotina da solucao sanitizante adicionada na agua
+ *
+ */
+void rotinaSanitizante()
+{
+  Serial.println();
+  Serial.println("ETAPA SANITIZANTE");
+  encherTanque(0);                 // adicionar agua
+  adicionarSolucao(bombaSanit, 3); // adicionar solucao
+  esvaziarTanque(tempAgua());      // liberar apos atingir temperatura
 }
 
 /**
@@ -244,40 +348,28 @@ void rotinaPreEnxague()
  */
 void cicloCIP()
 {
-  ////////////////// etapa pre-enxague
+  // etapa pre-enxague
   rotinaPreEnxague();
 
-  ////////////////// etapa base
+  // etapa base
+  rotinaBase();
+  rotinaEnxague();
 
-  Serial.println("CLICLO BASE");
-  encherTanque();                // adicionar agua
-  adicionarSolucao(bombaAlc, 1); // adicionar solucao
-  aquecerResistencia(tempBase);  // aquecer
-  misturar();
-  esvaziarTanque(tempBase); // liberar apos atingir temperatura
+  // etapa acido
+  rotinaAcida();
+  rotinaEnxague();
 
-  ////////////////// etapa pre-enxague
-  rotinaPreEnxague();
+  // etapa sanitizante
+  rotinaSanitizante();
 
-  ////////////////// etapa acido
-
-  Serial.println("CLICLO ACIDO");
-  encherTanque();                 // adicionar agua
-  adicionarSolucao(bombaAcid, 2); // adicionar solucao
-  aquecerResistencia(tempAcido);  // aquecer
-  misturar();
-  esvaziarTanque(tempAcido); // liberar apos atingir temperatura
-
-  ////////////////// etapa pre-enxague
-  rotinaPreEnxague();
-
-  ////////////////// etapa sanitizante
-
-  Serial.println("CLICLO SANITIZANTE");
-  encherTanque();                  // adicionar agua
-  adicionarSolucao(bombaSanit, 3); // adicionar solucao
-  misturar();
-  esvaziarTanque(tempSanitizante); // liberar apos atingir temperatura
+  if (interromper == true)
+  {
+    Serial.println("Rotina interrompida com sucesso!");
+    interromper = false;
+    if(digitalRead(relayBoia) == LOW){
+      esvaziarTanque(tempAgua());
+    }
+  }
 }
 
 /**
