@@ -2,8 +2,8 @@
  * @file main.cpp
  * @author DaveK2 (davefr@outlook.com.br)
  * @brief CIP ordenhadeira Campus Bom Jesus do Itabapoana
- * @version 0.4
- * @date 2023-01-06
+ * @version 0.5
+ * @date 2023-01-11
  *
  * @copyright Copyright (c) 2023
  *
@@ -11,10 +11,10 @@
 
 /*
 OBJETIVOS CURTO PRAZO
-  [] - Ter uma nocao do tempo necessario para esvaziar o tanque e mostrar no display 
+  [] - Ter uma nocao do tempo necessario para esvaziar o tanque e mostrar no display
   [] - Aperfeicoar ciclo CIP
-  [] - iniciar trabalhos no ciclo personalizado
-  
+  [x] - iniciar trabalhos no ciclo personalizado
+
 OBJETIVOS LONGO PRAZO
   [] - Testar resistencia
   [] - Testar contatora
@@ -26,21 +26,29 @@ MELHORIAS DO PRODUTO
 #include <Arduino.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include <EEPROM.h>
 
 void estadoBombas(uint8_t, uint8_t, uint8_t);
 void adicionarSolucao(float solucao, int relay);
-void cicloCIP();
 void misturar(uint8_t);
 void aquecerResistencia(uint8_t);
 void printInformacoes();
 void encherTanque();
 void esvaziarTanque(float);
 void rotinaPreEnxague();
+void rotinaEnxague();
+void rotinaBase();
+void rotinaAcida();
+void rotinaSanitizante();
+
 void statusBoia_ISR();
 float tempAgua();
 float calcSolucao(float);
 void funcaoBotao1();
 void interromperOperacao();
+void cicloCIP();
+void cicloPersonalizado();
+void confirmarSelecao();
 
 // CONTROLE RELAYS
 #define relayBoia 3 // futuramente substituir pelo ultrassonico se necessario
@@ -52,6 +60,8 @@ void interromperOperacao();
 #define relayMisturador 9
 #define relayResistencia 10
 #define pushButton1 12
+#define pushButton2 13
+#define pushButton3 14
 #define interruptPushButton 2
 
 // PINOS LEITURA
@@ -78,6 +88,7 @@ float tempPreEnxague = 55; // temperatura da agua em lavagens intermitente
 float um_ml = 1.66;                               // volume de despejado por 1s
 float ml_inserido = 200;                          // volume inserido como teste
 float bomba_delay = (ml_inserido / um_ml) * 1000; // calculo de despejo da bomba
+int timer = 100;
 
 #define DELAY_ESVAZIAR_TANQUE 18000
 #define COLETA_DELAY 3000
@@ -97,6 +108,8 @@ void setup()
   pinMode(relayResistencia, OUTPUT);
   pinMode(relayBoia, INPUT_PULLUP);
   pinMode(pushButton1, INPUT);
+  pinMode(pushButton2, INPUT);
+  pinMode(pushButton3, INPUT);
   pinMode(interruptPushButton, INPUT);
   attachInterrupt(digitalPinToInterrupt(interruptPushButton), interromperOperacao, CHANGE);
 
@@ -108,6 +121,8 @@ void setup()
 
   Serial.println("Inicializando sistema...");
   sensors.begin();
+
+  EEPROM.begin();
 }
 
 void loop()
@@ -123,18 +138,174 @@ void loop()
   teste = true;
   */
 
-  if ((millis() - tempo_ultima_coleta) > COLETA_DELAY)
-  {
-    printInformacoes();
-    tempo_ultima_coleta = millis();
-  }
+  printInformacoes();
 
   if (digitalRead(pushButton1) == HIGH)
   {
-    cicloCIP();
+    Serial.print("Ciclo CIP");
+    delay(1000);
+    confirmarSelecao();
+  }
+
+  if (digitalRead(pushButton2) == HIGH)
+  {
+    Serial.print("Ciclo Personalizado");
+    delay(1000);
+    confirmarSelecao();
+  }
+
+  if (digitalRead(pushButton3) == HIGH)
+  {
+    delay(1000);
+    Serial.println("funcionou");
   }
 }
 
+void confirmarSelecao()
+{
+  for (float i = timer / 2; i >= 0; i--)
+  {
+    Serial.print("Pressione novamente para continuar ");
+    Serial.println(i / 10);
+    if (digitalRead(pushButton1) == HIGH)
+    {
+      cicloCIP();
+      break;
+    }
+    if (digitalRead(pushButton2) == HIGH)
+    {
+      cicloPersonalizado();
+      break;
+    }
+    delay(100);
+  }
+}
+
+/**
+ * @brief Controle do ciclo automatico de limpeza da ordenhadeira
+ *
+ */
+void cicloCIP()
+{
+  Serial.println();
+  Serial.println("Inicializando ciclo CIP...");
+  // etapa pre-enxague
+  rotinaPreEnxague();
+
+  // etapa base
+  rotinaBase();
+  rotinaEnxague();
+
+  // etapa acido
+  rotinaAcida();
+  rotinaEnxague();
+
+  // etapa sanitizante
+  rotinaSanitizante();
+
+  if (interromper == true)
+  {
+    Serial.println("Rotina interrompida com sucesso!");
+    interromper = false;
+    if (digitalRead(relayBoia) == LOW)
+    {
+      esvaziarTanque(tempAgua());
+    }
+  }
+}
+
+/**
+ * @brief ciclo de limpeza criado pelo usuario
+ *
+ */
+void cicloPersonalizado()
+{
+  /*
+    1 - pre-enxague
+    2 - lavagem intermitente
+    3 - ciclo base
+    4 - ciclo acido
+    5 - ciclo sanit
+  */
+  Serial.println();
+  Serial.println("Inicializando ciclo Personalizado...");
+  int vetor[10];
+
+  for (int i = 0; i <= 10; i++)
+  {
+    Serial.print("posicao: ");
+    Serial.print(i);
+    Serial.print("  valor: ");
+    Serial.println(EEPROM.read(i));
+    delay(1000);
+  }
+  // botoes de selecao direita e esquerda
+  //  usar ciclo criado
+  /*
+  for (int i = 0; i < 10; i++)
+  {
+    if (EEPROM.read(i) == 1) // pre-enxague
+    {
+      vetor[i] == 1;
+    }
+    if (EEPROM.read(i) == 2) // lavagem intermitente
+    {
+      vetor[i] == 2;
+    }
+    if (EEPROM.read(i) == 3) // ciclo base
+    {
+      vetor[i] == 3;
+    }
+    if (EEPROM.read(i) == 4) // ciclo acido
+    {
+      vetor[i] == 4;
+    }
+    if (EEPROM.read(i) == 5) // ciclo sanit
+    {
+      vetor[i] == 5;
+    }
+    else
+    {
+      vetor[i] == 255;
+    }
+  }
+  // criar novo ciclo
+  // salvar novo ciclo
+
+  for (int i = 0; i < 10; i++)
+  {
+    if (vetor[i] == 1) // pre-enxague
+    {
+      EEPROM.update(i, 1);
+    }
+    if (vetor[i] == 2) // lavagem intermitente
+    {
+      EEPROM.update(i, 2);
+    }
+    if (vetor[i] == 3) // ciclo base
+    {
+      EEPROM.update(i, 3);
+    }
+    if (vetor[i] == 4) // ciclo acido
+    {
+      EEPROM.update(i, 4);
+    }
+    if (vetor[i] == 5) // ciclo sanit
+    {
+      EEPROM.update(i, 5);
+    }
+    else
+    {
+      EEPROM.update(i, 255);
+    }
+  }
+  */
+}
+
+/**
+ * @brief attachInterrupt responsavel por interromper os ciclos de limpeza
+ *
+ */
 void interromperOperacao()
 {
   Serial.println("cheguei na interrupcao");
@@ -183,10 +354,11 @@ void esvaziarTanque(float tempSolucao)
     /*
   if (tempAgua() == tempSolucao && digitalRead(relayBoia) == LOW)
   {
+    Serial.println("Despejando agua...");
     aquecerResistencia(HIGH); // aquecer
     misturar(HIGH);
     digitalWrite(relayEsvaziarTanque, LOW);
-    delay(1000); // tempo necessario para se liberar totalmente 50L de agua no sistema
+    delay(1000); // tempo necessario para se agua do tanque
   }*/
     misturar(HIGH);
     aquecerResistencia(HIGH);
@@ -207,7 +379,6 @@ void misturar(uint8_t status)
 {
   if (interromper == false)
   {
-    // realizar essa tarefa em paralelo com outras, aquecer a agua por exemplo
     if (status == LOW)
     {
       Serial.println("Ligando misturador");
@@ -252,8 +423,6 @@ void adicionarSolucao(float solucao, int relay)
     delay(calcSolucao(solucao));
     estadoBombas(HIGH, HIGH, HIGH);
     Serial.println("Solucao Adicionada!");
-    // reduzir o numero de delays existentes para ganhar tempo no aquecimento
-    // da agua, maior desafio a ser superado ate o momento, utilizar millis() 28/12/2022
   }
 }
 
@@ -299,8 +468,8 @@ void rotinaEnxague()
 {
   Serial.println();
   Serial.println("ETAPA ENXAGUE");
-  encherTanque(0);          // adicionar agua
-  esvaziarTanque(tempBase); // liberar apos atingir temperatura
+  encherTanque(0);            // adicionar agua
+  esvaziarTanque(tempAgua()); // liberar apos atingir temperatura
 }
 
 /**
@@ -340,36 +509,6 @@ void rotinaSanitizante()
   encherTanque(0);                 // adicionar agua
   adicionarSolucao(bombaSanit, 3); // adicionar solucao
   esvaziarTanque(tempAgua());      // liberar apos atingir temperatura
-}
-
-/**
- * @brief Controle do ciclo automatico de limpeza da ordenhadeira
- *
- */
-void cicloCIP()
-{
-  // etapa pre-enxague
-  rotinaPreEnxague();
-
-  // etapa base
-  rotinaBase();
-  rotinaEnxague();
-
-  // etapa acido
-  rotinaAcida();
-  rotinaEnxague();
-
-  // etapa sanitizante
-  rotinaSanitizante();
-
-  if (interromper == true)
-  {
-    Serial.println("Rotina interrompida com sucesso!");
-    interromper = false;
-    if(digitalRead(relayBoia) == LOW){
-      esvaziarTanque(tempAgua());
-    }
-  }
 }
 
 /**
@@ -417,40 +556,44 @@ void estadoBombas(uint8_t bombaAlc, uint8_t bombaAcid, uint8_t bombaSanit)
  */
 void printInformacoes()
 {
-  Serial.println("||----------------Monitoramento---------------||");
-  Serial.print("BOMBA PERISTALTICA: ");
-  if (digitalRead(relayAcid) == LOW)
+  if ((millis() - tempo_ultima_coleta) > COLETA_DELAY)
   {
-    Serial.println("adicionando acido...");
-  }
-  if (digitalRead(relayAlc) == LOW)
-  {
-    Serial.println("adicionando base...");
-  }
-  if (digitalRead(relaySanit) == LOW)
-  {
-    Serial.println("adicionando sanitizante...");
-  }
+    Serial.println("||----------------Monitoramento---------------||");
+    Serial.print("BOMBA PERISTALTICA: ");
+    if (digitalRead(relayAcid) == LOW)
+    {
+      Serial.println("adicionando acido...");
+    }
+    if (digitalRead(relayAlc) == LOW)
+    {
+      Serial.println("adicionando base...");
+    }
+    if (digitalRead(relaySanit) == LOW)
+    {
+      Serial.println("adicionando sanitizante...");
+    }
 
-  if (digitalRead(relayAcid) == HIGH || digitalRead(relayAlc) == HIGH || digitalRead(relaySanit) == HIGH)
-  {
-    Serial.println("desligada.");
-  }
+    if (digitalRead(relayAcid) == HIGH || digitalRead(relayAlc) == HIGH || digitalRead(relaySanit) == HIGH)
+    {
+      Serial.println("desligada.");
+    }
 
-  Serial.print("BOIA: ");
+    Serial.print("BOIA: ");
 
-  if (digitalRead(relayBoia) == HIGH)
-  {
-    Serial.println("Tanque vazio/esvaziando");
-  }
-  else
-  {
-    Serial.println("Acionada tanque cheio");
-  }
+    if (digitalRead(relayBoia) == HIGH)
+    {
+      Serial.println("Tanque vazio/esvaziando");
+    }
+    else
+    {
+      Serial.println("Acionada tanque cheio");
+    }
 
-  Serial.print("TEMP AGUA: ");
-  Serial.println(tempAgua());
-  Serial.print("TEMP TANQUE: ");
-  Serial.println("Sem sensor");
-  Serial.println();
+    Serial.print("TEMP AGUA: ");
+    Serial.println(tempAgua());
+    Serial.print("TEMP TANQUE: ");
+    Serial.println("Sem sensor");
+    Serial.println();
+    tempo_ultima_coleta = millis();
+  }
 }
