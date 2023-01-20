@@ -2,8 +2,8 @@
  * @file main.cpp
  * @author DaveK2 (davefr@outlook.com.br)
  * @brief CIP ordenhadeira Campus Bom Jesus do Itabapoana
- * @version 0.6
- * @date 2023-01-18
+ * @version 0.6.1
+ * @date 2023-01-20
  *
  * @copyright Copyright (c) 2023
  *
@@ -151,12 +151,25 @@ void loop()
 
   printInformacoes();
 
-  // selecionarCiclo();
+  /**
+   * funcoes
+   *
+   * selecionarCiclo()
+   * alterarVolumeSolucao();
+   *
+   */
+
+  if (digitalRead(pushButton1) == HIGH)
+  {
+    cicloPersonalizado();
+  }
+
+  /*
   if (digitalRead(pushButton1) == HIGH)
   {
     delay(1000);
     alterarVolumeSolucao();
-  }
+  }*/
 }
 
 /**
@@ -230,7 +243,7 @@ void alterarVolumeSolucao()
 
   while (digitalRead(pushButton1) == LOW)
   {
-    Serial.print("Acid:");
+    Serial.print("Acido:");
     Serial.println(volAcidPersonalizado);
     if (digitalRead(pushButton2) == HIGH)
     {
@@ -250,7 +263,7 @@ void alterarVolumeSolucao()
 
   while (digitalRead(pushButton1) == LOW)
   {
-    Serial.print("Sanit:");
+    Serial.print("Sanitizante:");
     Serial.println(volSanitPersonalizado);
     if (digitalRead(pushButton2) == HIGH)
     {
@@ -392,16 +405,9 @@ void cicloCIP()
  */
 void cicloPersonalizado()
 {
-  /*
-    1 - pre-enxague
-    2 - lavagem intermitente
-    3 - ciclo base
-    4 - ciclo acido
-    5 - ciclo sanit
-  */
   Serial.println();
   Serial.println("Inicializando ciclo Personalizado...");
-  int vetor[10];
+  /*int vetor[10];
 
   for (int i = 0; i <= 10; i++)
   {
@@ -410,8 +416,36 @@ void cicloPersonalizado()
     Serial.print("  valor: ");
     Serial.println(EEPROM.read(i));
     delay(1000);
-  }
+  }*/
+
   // botoes de selecao direita e esquerda
+  /*
+    1 - pre-enxague
+    2 - lavagem intermitente
+    3 - ciclo base
+    4 - ciclo acido
+    5 - ciclo sanitizante
+  */
+  String v[5] = {"pre-enxague", "lavagem intermitente", "alcalina", "acido", "sanitizante"};
+  int count = 0;
+  while (digitalRead(pushButton1) == LOW)
+  {
+    Serial.print("Etapa: ");
+    Serial.println(v[count]);
+    Serial.print("count:");
+    Serial.println(count);
+    if (digitalRead(pushButton2) == HIGH && count < 4)
+    {
+      count++;
+      delay(500);
+    }
+
+    if (digitalRead(pushButton3) == HIGH && count > 0)
+    {
+      count--;
+      delay(500);
+    }
+  }
   //  usar ciclo criado
   /*
   for (int i = 0; i < 10; i++)
