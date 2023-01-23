@@ -2,8 +2,8 @@
  * @file main.cpp
  * @author DaveK2 (davefr@outlook.com.br)
  * @brief CIP ordenhadeira Campus Bom Jesus do Itabapoana
- * @version 0.6.1
- * @date 2023-01-21
+ * @version 0.6.2
+ * @date 2023-01-23
  *
  * @copyright Copyright (c) 2023
  *
