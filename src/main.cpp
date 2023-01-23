@@ -3,7 +3,7 @@
  * @author DaveK2 (davefr@outlook.com.br)
  * @brief CIP ordenhadeira Campus Bom Jesus do Itabapoana
  * @version 0.6.1
- * @date 2023-01-20
+ * @date 2023-01-21
  *
  * @copyright Copyright (c) 2023
  *
@@ -30,8 +30,9 @@ void estadoBombas(uint8_t, uint8_t, uint8_t);
 void aquecerResistencia(uint8_t);
 void misturar(uint8_t);
 void esvaziarTanque(float);
-void salvarVolSolucaoEEPROM(float);
 void adicionarSolucao(float, int);
+void converterProgramaParaEEPROM(float);
+void confirmarSelecao(void (*funcao)(), int botao);
 void printInformacoes();
 void encherTanque();
 void rotinaPreEnxague();
@@ -39,33 +40,36 @@ void rotinaEnxague();
 void rotinaBase();
 void rotinaAcida();
 void rotinaSanitizante();
-void statusBoia_ISR();
-void funcaoBotao1();
 void interromperOperacao();
 void cicloCIP();
 void cicloPersonalizado();
-void confirmarSelecao();
+void criarCicloPersonalizado();
 void selecionarCiclo();
 void alterarVolumeSolucao();
 void pegarVolSolucaoEEPROM();
+void salvarCicloPersonalizado();
+void usarCicloPersonalizado();
+void salvarSolucaoNaEEPROM();
 
-float converteValorSolucao(int posicao);
+float converterEEPROMParaPrograma(int posicao);
 float calcSolucao(float);
 float tempAgua();
 
 // CONTROLE RELAYS
-#define relayBoia 3           // futuramente substituir pelo ultrassonico se necessario
-#define relayAlc 4            // bomba peristaltica alcalina
-#define relayAcid 5           // bomba peristaltica acida
-#define relaySanit 6          // bomba peristaltica sanitizante
-#define relayEncherTanque 7   // solenoide responsavel por encher tanque
-#define relayEsvaziarTanque 8 // solenoide responsavel por esvaziar
-#define relayMisturador 9     // manter solucao diluida
-#define relayResistencia 10   // aquecer agua
-#define pushButton1 12        // botao de interacao com o sistema
-#define pushButton2 13        // botao de interacao com o sistema
-#define pushButton3 14        // botao de interacao com o sistema
-#define interruptPushButton 2 // botao de interrupcao de ciclo
+#define relayBoia 3                // futuramente substituir pelo ultrassonico se necessario
+#define relayAlc 4                 // bomba peristaltica alcalina
+#define relayAcid 5                // bomba peristaltica acida
+#define relaySanit 6               // bomba peristaltica sanitizante
+#define relayEncherTanque 7        // solenoide responsavel por encher tanque
+#define relayEsvaziarTanque 8      // solenoide responsavel por esvaziar
+#define relayMisturador 9          // manter solucao diluida
+#define relayResistencia 10        // aquecer agua
+#define botaoCicloCip 12           // botao de interacao com o sistema
+#define botaoCicloPersonalizado 13 // botao de interacao com o sistema
+#define botaoSetaDireita 14        // botao de interacao com o sistema
+#define botaoSetaEsquerda 15       // botao de interacao com o sistema
+#define botaoSolucao 16            // botao de interacao com o sistema
+#define interruptPushButton 2      // botao de interrupcao de ciclo
 
 // PINOS LEITURA
 #define tempSensor 11 // DS18B20
@@ -81,6 +85,11 @@ float bombaSanit = 0; // ainda nao descoberto
 float volAcidPersonalizado = 0;
 float volAlcPersonalizado = 0;
 float volSanitPersonalizado = 0;
+
+// POSICOES NA EEPROM, ONDE AS SOLUCOES SERAO SALVAS
+#define EEPROM_ALC 11
+#define EEPROM_ACID 12
+#define EEPROM_SANIT 13
 
 // TEMPERATURAS IDEAIS DA AGUA
 // De acordo com o artigo "Limpeza e Desinfecção de Equipamentos de Ordenha e Tanques" de MARCOS VEIGA SANTOS
@@ -105,6 +114,8 @@ bool interromper = false;           // interromper ciclo
 
 unsigned long tempo_ultima_coleta;
 
+int vetor[10];
+
 void setup()
 {
   Serial.begin(9600);
@@ -116,9 +127,11 @@ void setup()
   pinMode(relayMisturador, OUTPUT);
   pinMode(relayResistencia, OUTPUT);
   pinMode(relayBoia, INPUT_PULLUP);
-  pinMode(pushButton1, INPUT);
-  pinMode(pushButton2, INPUT);
-  pinMode(pushButton3, INPUT);
+  pinMode(botaoCicloCip, INPUT);
+  pinMode(botaoCicloPersonalizado, INPUT);
+  pinMode(botaoSetaDireita, INPUT);
+  pinMode(botaoSetaEsquerda, INPUT);
+  pinMode(botaoSolucao, INPUT);
   pinMode(interruptPushButton, INPUT);
   attachInterrupt(digitalPinToInterrupt(interruptPushButton), interromperOperacao, CHANGE);
 
@@ -151,25 +164,54 @@ void loop()
 
   printInformacoes();
 
-  /**
-   * funcoes
-   *
-   * selecionarCiclo()
-   * alterarVolumeSolucao();
-   *
-   */
+  selecionarCiclo();
+}
 
-  if (digitalRead(pushButton1) == HIGH)
+/**
+ * @brief botoes de selecao de ciclo
+ *
+ */
+void selecionarCiclo()
+{
+  if (digitalRead(botaoCicloCip) == HIGH)
   {
-    cicloPersonalizado();
+    Serial.println("Ciclo CIP");
+    confirmarSelecao(cicloCIP, botaoCicloCip);
   }
 
-  /*
-  if (digitalRead(pushButton1) == HIGH)
+  if (digitalRead(botaoCicloPersonalizado) == HIGH)
   {
-    delay(1000);
-    alterarVolumeSolucao();
-  }*/
+    Serial.println("Ciclo Personalizado");
+    confirmarSelecao(cicloPersonalizado, botaoCicloPersonalizado);
+  }
+
+  if (digitalRead(botaoSolucao) == HIGH)
+  {
+    Serial.println("Alterar volume Solucao");
+    confirmarSelecao(alterarVolumeSolucao, botaoSolucao);
+  }
+}
+
+/**
+ * @brief confirmacao do ciclo selecionado
+ *
+ * @param funcao a ser selecionada
+ * @param botao botao a ser pressionado para confirmacao
+ */
+void confirmarSelecao(void (*funcao)(), int botao)
+{
+  delay(1000);
+  for (float i = timer / 2; i >= 0; i--)
+  {
+    Serial.print("Pressione novamente para continuar ");
+    Serial.println(i / 10);
+    if (digitalRead(botao) == HIGH)
+    {
+      funcao();
+      break;
+    }
+    delay(100);
+  }
 }
 
 /**
@@ -178,7 +220,7 @@ void loop()
  * @param solucao a ser convertida
  * @param posicao a ser salva na memoria
  */
-void salvarVolSolucaoEEPROM(float solucao, int posicao)
+void converterProgramaParaEEPROM(float solucao, int posicao)
 {
   int aux = solucao * 100;
   aux /= 5;
@@ -188,27 +230,12 @@ void salvarVolSolucaoEEPROM(float solucao, int posicao)
 }
 
 /**
- * @brief define os valores das solucoes com valores salvos na EEPROM 11 (alcalina),12 (acida) e 13 (sanitizante)
- *
- */
-void pegarVolSolucaoEEPROM()
-{
-  bombaAlc = converteValorSolucao(11);
-  bombaAcid = converteValorSolucao(12);
-  bombaSanit = converteValorSolucao(13);
-
-  volAlcPersonalizado = converteValorSolucao(11);
-  volAcidPersonalizado = converteValorSolucao(12);
-  volSanitPersonalizado = converteValorSolucao(13);
-}
-
-/**
  * @brief converte os valores que estao sendo pegos na EEPROM
  *
  * @param posicao da memoria na EEPROM definidas como 11 (alcalina),12 (acida) e 13 (sanitizante)
  * @return float
  */
-float converteValorSolucao(int posicao)
+float converterEEPROMParaPrograma(int posicao)
 {
   float aux = EEPROM.read(posicao);
   aux /= 100;
@@ -216,21 +243,62 @@ float converteValorSolucao(int posicao)
 }
 
 /**
- * @brief Altera volume das solucoes a serem despejadas na agua
+ * @brief define os valores das solucoes com valores salvos na EEPROM 11 (alcalina),12 (acida) e 13 (sanitizante)
+ *
+ */
+void pegarVolSolucaoEEPROM()
+{
+  bombaAlc = converterEEPROMParaPrograma(EEPROM_ALC);
+  bombaAcid = converterEEPROMParaPrograma(EEPROM_ACID);
+  bombaSanit = converterEEPROMParaPrograma(EEPROM_SANIT);
+
+  volAlcPersonalizado = converterEEPROMParaPrograma(EEPROM_ALC);
+  volAcidPersonalizado = converterEEPROMParaPrograma(EEPROM_ACID);
+  volSanitPersonalizado = converterEEPROMParaPrograma(EEPROM_SANIT);
+}
+
+/**
+ * @brief salva dados na EEPROM
+ *
+ */
+void salvarSolucaoNaEEPROM()
+{
+  Serial.println("-SALVANDO NA EEPROM-");
+  Serial.print("Alc:");
+  converterProgramaParaEEPROM(volAlcPersonalizado, 11);
+  Serial.println();
+  Serial.print("Acid:");
+  converterProgramaParaEEPROM(volAcidPersonalizado, 12);
+  Serial.println();
+  Serial.print("Sanit:");
+  converterProgramaParaEEPROM(volSanitPersonalizado, 13);
+  Serial.println();
+
+  Serial.println("-CONVERTIDOS DA EEPROM-");
+  Serial.println(EEPROM.read(11));
+  Serial.println(EEPROM.read(12));
+  Serial.println(EEPROM.read(13));
+
+  pegarVolSolucaoEEPROM();
+}
+
+/**
+ * @brief altera volume das solucoes a serem despejadas na agua
  *
  */
 void alterarVolumeSolucao()
 {
-  while (digitalRead(pushButton1) == LOW)
+  delay(1500);
+  while (digitalRead(botaoSolucao) == LOW)
   {
-    Serial.print("Alc:");
+    Serial.print("Alcalino:");
     Serial.println(volAlcPersonalizado);
-    if (digitalRead(pushButton2) == HIGH)
+    if (digitalRead(botaoSetaDireita) == HIGH)
     {
       volAlcPersonalizado += 0.1;
       delay(500);
     }
-    if (digitalRead(pushButton3) == HIGH)
+    if (digitalRead(botaoSetaEsquerda) == HIGH)
     {
       if (volAlcPersonalizado > 0)
       {
@@ -241,16 +309,16 @@ void alterarVolumeSolucao()
   }
   delay(1500);
 
-  while (digitalRead(pushButton1) == LOW)
+  while (digitalRead(botaoSolucao) == LOW)
   {
     Serial.print("Acido:");
     Serial.println(volAcidPersonalizado);
-    if (digitalRead(pushButton2) == HIGH)
+    if (digitalRead(botaoSetaDireita) == HIGH)
     {
       volAcidPersonalizado += 0.1;
       delay(500);
     }
-    if (digitalRead(pushButton3) == HIGH)
+    if (digitalRead(botaoSetaEsquerda) == HIGH)
     {
       if (volAcidPersonalizado > 0)
       {
@@ -261,16 +329,16 @@ void alterarVolumeSolucao()
   }
   delay(1500);
 
-  while (digitalRead(pushButton1) == LOW)
+  while (digitalRead(botaoSolucao) == LOW)
   {
     Serial.print("Sanitizante:");
     Serial.println(volSanitPersonalizado);
-    if (digitalRead(pushButton2) == HIGH)
+    if (digitalRead(botaoSetaDireita) == HIGH)
     {
       volSanitPersonalizado += 0.1;
       delay(500);
     }
-    if (digitalRead(pushButton3) == HIGH)
+    if (digitalRead(botaoSetaEsquerda) == HIGH)
     {
       if (volSanitPersonalizado > 0)
       {
@@ -279,81 +347,8 @@ void alterarVolumeSolucao()
       }
     }
   }
-  delay(1500);
-
-  for (float i = timer / 2; i >= 0; i--)
-  {
-    Serial.print("Pressione novamente para salvar na memoria");
-    Serial.println(i / 10);
-    if (digitalRead(pushButton1) == HIGH)
-    {
-      Serial.println("-SALVANDO NA EEPROM-");
-      Serial.print("Alc:");
-      salvarVolSolucaoEEPROM(volAlcPersonalizado, 11);
-      Serial.println();
-      Serial.print("Acid:");
-      salvarVolSolucaoEEPROM(volAcidPersonalizado, 12);
-      Serial.println();
-      Serial.print("Sanit:");
-      salvarVolSolucaoEEPROM(volSanitPersonalizado, 13);
-      Serial.println();
-
-      Serial.println("-CONVERTIDOS DA EEPROM-");
-      Serial.println(EEPROM.read(11));
-      Serial.println(EEPROM.read(12));
-      Serial.println(EEPROM.read(13));
-
-      pegarVolSolucaoEEPROM();
-
-      break;
-    }
-  }
-  delay(5000);
-}
-
-/**
- * @brief botoes de selecao de ciclo
- *
- */
-void selecionarCiclo()
-{
-  if (digitalRead(pushButton1) == HIGH)
-  {
-    Serial.print("Ciclo CIP");
-    delay(1000);
-    confirmarSelecao();
-  }
-
-  if (digitalRead(pushButton2) == HIGH)
-  {
-    Serial.print("Ciclo Personalizado");
-    delay(1000);
-    confirmarSelecao();
-  }
-}
-
-/**
- * @brief confirmacao do ciclo selecionado
- *
- */
-void confirmarSelecao()
-{
-  for (float i = timer / 2; i >= 0; i--)
-  {
-    Serial.print("Pressione novamente para continuar ");
-    Serial.println(i / 10);
-    if (digitalRead(pushButton1) == HIGH)
-    {
-      cicloCIP();
-      break;
-    }
-    if (digitalRead(pushButton2) == HIGH)
-    {
-      cicloPersonalizado();
-      break;
-    }
-    delay(100);
-  }
+  Serial.println("Salvar na memoria ?");
+  confirmarSelecao(salvarSolucaoNaEEPROM, botaoSolucao);
 }
 
 /**
@@ -367,7 +362,7 @@ void interromperOperacao()
 }
 
 /**
- * @brief Controle do ciclo automatico de limpeza da ordenhadeira
+ * @brief controle do ciclo automatico de limpeza da ordenhadeira
  *
  */
 void cicloCIP()
@@ -400,116 +395,237 @@ void cicloCIP()
 }
 
 /**
- * @brief ciclo de limpeza criado pelo usuario
+ * @brief painel de selecao de ciclo de limpeza criado pelo usuario
  *
  */
 void cicloPersonalizado()
 {
+  delay(1000);
   Serial.println();
-  Serial.println("Inicializando ciclo Personalizado...");
-  /*int vetor[10];
+  String v[2] = {"usar ciclo personalizado", "criar novo ciclo personalizado"};
 
-  for (int i = 0; i <= 10; i++)
-  {
-    Serial.print("posicao: ");
-    Serial.print(i);
-    Serial.print("  valor: ");
-    Serial.println(EEPROM.read(i));
-    delay(1000);
-  }*/
-
-  // botoes de selecao direita e esquerda
-  /*
-    1 - pre-enxague
-    2 - lavagem intermitente
-    3 - ciclo base
-    4 - ciclo acido
-    5 - ciclo sanitizante
-  */
-  String v[5] = {"pre-enxague", "lavagem intermitente", "alcalina", "acido", "sanitizante"};
   int count = 0;
-  while (digitalRead(pushButton1) == LOW)
+
+  while (digitalRead(botaoCicloPersonalizado) == LOW)
   {
-    Serial.print("Etapa: ");
-    Serial.println(v[count]);
-    Serial.print("count:");
-    Serial.println(count);
-    if (digitalRead(pushButton2) == HIGH && count < 4)
+    Serial.println();
+    Serial.print(v[count]);
+
+    // navegando para a direita sobre as opcoes
+    if (digitalRead(botaoSetaDireita) == HIGH && count < 1)
     {
       count++;
       delay(500);
     }
 
-    if (digitalRead(pushButton3) == HIGH && count > 0)
+    // navegando para a esquerda sobre as opcoes
+    if (digitalRead(botaoSetaEsquerda) == HIGH && count > 0)
     {
       count--;
       delay(500);
     }
   }
+
+  if (count == 0)
+  {
+    confirmarSelecao(usarCicloPersonalizado, botaoCicloPersonalizado);
+  }
+  else
+  {
+    confirmarSelecao(criarCicloPersonalizado, botaoCicloPersonalizado);
+  }
+
   //  usar ciclo criado
-  /*
+  // criar ciclo personalizado
+}
+
+/**
+ * @brief cria um ciclo CIP personalizado
+ *
+ */
+void criarCicloPersonalizado()
+{
+  // 1 - pre-enxague
+  // 2 - lavagem intermitente
+  // 3 - ciclo base
+  // 4 - ciclo acido
+  // 5 - ciclo sanitizante
+
+  // vetor salvando as possiveis selecoes das rotinas
+  String v[5] = {"pre-enxague", "lavagem-intermitente", "alcalina", "acido", "sanitizante"};
+  int count = 0; // percorrendo vetor de string representando as rotinas
+  int i = 0;     // percorrendo o vetor de rotinas
+
+  // atribuindo um valor inicial para as posicoes do vetor
   for (int i = 0; i < 10; i++)
   {
+    vetor[i] = 255; // valor geralmente atribuido as posicoes da EEPROM
+  }
+
+  delay(500); // delay para esperar o valor do botao ser zerado
+
+  while (digitalRead(botaoCicloPersonalizado) == LOW)
+  {
+    for (int i = 0; i < 10; i++)
+    {
+      if (vetor[i] != 255)
+      {
+        Serial.print("*");
+      }
+    }
+
+    Serial.println();
+    Serial.print("Etapa: ");
+    Serial.println(v[count]);
+
+    // navegando para a direita sobre as opcoes
+    if (digitalRead(botaoSetaDireita) == HIGH && count < 4)
+    {
+      count++;
+      delay(500);
+    }
+
+    // navegando para a esquerda sobre as opcoes
+    if (digitalRead(botaoSetaEsquerda) == HIGH && count > 0)
+    {
+      count--;
+      delay(500);
+    }
+
+    // adicionando ao vetor a ordem da rotina
+    if (digitalRead(botaoSolucao) == HIGH)
+    {
+      if (v[count] == "pre-enxague")
+      {
+        vetor[i] = 1;
+      }
+      if (v[count] == "lavagem-intermitente")
+      {
+        vetor[i] = 2;
+      }
+      if (v[count] == "alcalina")
+      {
+        vetor[i] = 3;
+      }
+      if (v[count] == "acido")
+      {
+        vetor[i] = 4;
+      }
+      if (v[count] == "sanitizante")
+      {
+        vetor[i] = 5;
+      }
+
+      if (i < 10) // enquanto o vetor de rotinas nao se encontra cheio
+      {
+        Serial.println("adicionado ao vetor!");
+        i++;
+      }
+      else
+      {
+        Serial.println("vetor cheio");
+      }
+      delay(1000);
+    }
+  }
+
+  // preenche o restante do vetor
+  while (i < 10)
+  {
+    vetor[i] = 255;
+    i++;
+  }
+
+  // Imprimindo vetor resultante
+  for (int i = 0; i < 10; i++)
+  {
+    Serial.print(" ");
+    Serial.print(vetor[i]);
+    Serial.print(" - ");
+  }
+  Serial.println();
+
+  Serial.println("Salvar ciclo na memoria ?");
+  confirmarSelecao(salvarCicloPersonalizado, botaoCicloPersonalizado);
+}
+
+/**
+ * @brief usa ciclo de limpeza ja salvo na memoria
+ *
+ */
+void usarCicloPersonalizado()
+{
+  Serial.println("usando ciclo salvo na memoria");
+  for (int i = 0; i < 10; i++)
+  {
+    Serial.print(" ");
+    Serial.print(EEPROM.read(i));
+    Serial.print(" - ");
+
     if (EEPROM.read(i) == 1) // pre-enxague
     {
-      vetor[i] == 1;
+      vetor[i] = 1;
     }
     if (EEPROM.read(i) == 2) // lavagem intermitente
     {
-      vetor[i] == 2;
+      vetor[i] = 2;
     }
     if (EEPROM.read(i) == 3) // ciclo base
     {
-      vetor[i] == 3;
+      vetor[i] = 3;
     }
     if (EEPROM.read(i) == 4) // ciclo acido
     {
-      vetor[i] == 4;
+      vetor[i] = 4;
     }
     if (EEPROM.read(i) == 5) // ciclo sanit
     {
-      vetor[i] == 5;
-    }
-    else
-    {
-      vetor[i] == 255;
+      vetor[i] = 5;
     }
   }
-  // criar novo ciclo
-  // salvar novo ciclo
+}
 
+/**
+ * @brief salva ciclo de limpeza personalizado
+ *
+ */
+void salvarCicloPersonalizado()
+{
+  Serial.println("salvando ciclo na memoria...");
+  delay(500);
   for (int i = 0; i < 10; i++)
   {
     if (vetor[i] == 1) // pre-enxague
     {
-      EEPROM.update(i, 1);
+      EEPROM.update(vetor[i], 1);
     }
     if (vetor[i] == 2) // lavagem intermitente
     {
-      EEPROM.update(i, 2);
+      EEPROM.update(vetor[i], 2);
     }
     if (vetor[i] == 3) // ciclo base
     {
-      EEPROM.update(i, 3);
+      EEPROM.update(vetor[i], 3);
     }
     if (vetor[i] == 4) // ciclo acido
     {
-      EEPROM.update(i, 4);
+      EEPROM.update(vetor[i], 4);
     }
     if (vetor[i] == 5) // ciclo sanit
     {
-      EEPROM.update(i, 5);
+      EEPROM.update(vetor[i], 5);
     }
     else
     {
-      EEPROM.update(i, 255);
+      EEPROM.update(vetor[i], 255);
     }
   }
-  */
+  Serial.println("ciclo salvo!");
+  delay(500);
 }
 
 /**
- * @brief Enche o tanque de agua
+ * @brief enche o tanque de agua
  *
  * @param resistencia se igual a 1 aquece resistencia
  */
@@ -539,7 +655,7 @@ void encherTanque(int resistencia)
 }
 
 /**
- * @brief Despejando agua com solucao no sistema de limpeza
+ * @brief despejando agua com solucao no sistema de limpeza
  *
  * @param tempSolucao a ser verificada
  */
@@ -567,7 +683,7 @@ void esvaziarTanque(float tempSolucao)
 }
 
 /**
- * @brief Ativa/desativa misturador da agua com solucao
+ * @brief ativa/desativa misturador da agua com solucao
  *
  * @param status HIGH == desligado || LOW == ligado
  */
@@ -589,7 +705,7 @@ void misturar(uint8_t status)
 }
 
 /**
- * @brief Controle da injecao de solucao na agua
+ * @brief controle da injecao de solucao na agua
  *
  * @param solucao a ser adicionada
  * @param relay a ser ativado => 1 - Acido || 2 - Base || 3 - Sanitizante
@@ -645,7 +761,7 @@ void aquecerResistencia(uint8_t status)
 }
 
 /**
- * @brief Pre lavagem do tanque apos ordenha
+ * @brief pre lavagem do tanque apos ordenha
  *
  */
 void rotinaPreEnxague()
@@ -708,7 +824,7 @@ void rotinaSanitizante()
 }
 
 /**
- * @brief Quantidade de solucao a ser despejada em 50L de agua
+ * @brief quantidade de solucao a ser despejada em 50L de agua
  *
  * @param solucao
  * @return tempo(ms)
@@ -719,7 +835,7 @@ float calcSolucao(float solucao)
 }
 
 /**
- * @brief Coletando temperatura do sensor DS18B20
+ * @brief coletando temperatura do sensor DS18B20
  *
  * @return temperatura
  */
@@ -733,7 +849,7 @@ float tempAgua()
 }
 
 /**
- * @brief Controle das tres bombas peristalticas HIGH - Desativado || LOW - Ativado
+ * @brief controle das tres bombas peristalticas HIGH - Desativado || LOW - Ativado
  *
  * @param bombaAcid
  * @param bombaAlc
@@ -747,7 +863,7 @@ void estadoBombas(uint8_t bombaAlc, uint8_t bombaAcid, uint8_t bombaSanit)
 }
 
 /**
- * @brief Printando informacoes na tela
+ * @brief printando informacoes na tela
  *
  */
 void printInformacoes()
