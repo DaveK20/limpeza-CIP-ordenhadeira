@@ -2,8 +2,8 @@
  * @file main.cpp
  * @author DaveK2 (davefr@outlook.com.br)
  * @brief CIP ordenhadeira Campus Bom Jesus do Itabapoana
- * @version 0.8.2
- * @date 2023-02-07
+ * @version 0.8.3.1
+ * @date 2023-02-15
  *
  * @copyright Copyright (c) 2023
  *
@@ -23,6 +23,9 @@ OBJETIVOS RESTANTES
   IMPORTANTE!!!
   Olhar rotinas CIP e corrigir inconsistencias
   remover variaveis desnecessarias
+
+  correcao do interrupt, fazer com que o while funcione somente enqunato o interrupt seja falso e colocar
+  um tempo para que o interrupt seja desativado novamente com millis()
 */
 
 #include <Arduino.h>
@@ -63,6 +66,7 @@ void alterarTemperatura();
 void pegarTempSolucaoEEPROM();
 void salvarTempNaEEPROM();
 void printOpcoesLCD();
+void printarCicloPersonalizado();
 
 uint8_t requiredOffset(String palavra);
 float converterEEPROMParaPrograma(uint8_t posicao);
@@ -154,9 +158,9 @@ unsigned long tempo_ultima_coleta;
 // painel de selecao selecionarOpcao()
 const char *opcoes[] = {"CIP", "Personalizado", "Temperatura", "Solucao", "Monitoramento"};
 // painel de selecao cicloPersonalizado()
-const char *percorrerCicloPersonalinado[] = {"Usar Ciclo", "Novo Ciclo"};
+const char *percorrerCicloPersonalinado[] = {"Usar Ciclo", "Novo Ciclo", "Verificar ciclo"};
 // painel de selecao criarCicloPersonalizado()
-const char *possiveisRotinas[5] = {"pre-enxague", "lavagem-intermitente", "alcalina", "acido", "sanitizante"};
+const char *possiveisRotinas[5] = {"Pre-enxague", "Enxague", "Alcalina", "Acida", "Sanitizante"};
 
 void setup()
 {
@@ -212,27 +216,28 @@ void loop()
   teste = true;
 
 
-   if (digitalRead(botaoSetaEsquerda) == HIGH)
-   {
-     Serial.println("alto");
-   }
-   else
-   {
-     Serial.println("baixo");
-   }*/
+
+  if (digitalRead(botaoOK) == HIGH)
+  {
+    Serial.println("alto");
+  }
+  else
+  {
+    Serial.println("baixo");
+  }*/
 
   selecionarOpcao();
 }
 
 /**
- * @brief
+ * @brief printa informacoes no centro da tela
  *
- * @param palavra
+ * @param linha0 coluna 0, linha 0 do LCD
+ * @param linha1 coluna 0, linha 1 do LCD
  */
 void printOpcoesLCD(String linha0, String linha1)
 {
   // lcd.setCursor(col, line);
-
   lcd.setCursor(requiredOffset(linha0), 0);
   lcd.print(linha0);
 
@@ -241,12 +246,13 @@ void printOpcoesLCD(String linha0, String linha1)
 }
 
 /**
- * @brief printa no centro do lcd i2c
- * 
+ * @brief printa no centro do LCD I2C
+ *
  * @param palavra a ser verificada
- * @return posicao central a ser escrita 
+ * @return posicao central a ser escrita
  */
-uint8_t requiredOffset(String palavra){
+uint8_t requiredOffset(String palavra)
+{
   uint8_t offset = palavra.length();
   offset = offset / 2;
   return 8 - offset;
@@ -281,28 +287,26 @@ void selecionarOpcao()
 
   if (digitalRead(botaoOK) == HIGH)
   {
-    if (opcoes[percorrerOpcoes] == "cicloCip")
+    switch (percorrerOpcoes)
     {
+    case 0:
       confirmarSelecao(cicloCIP, botaoOK);
-    }
-    if (opcoes[percorrerOpcoes] == "cicloPersonalizado")
-    {
+      break;
+    case 1:
       confirmarSelecao(cicloPersonalizado, botaoOK);
-    }
-    if (opcoes[percorrerOpcoes] == "alterarTemperatura")
-    {
+      break;
+    case 2:
       confirmarSelecao(alterarTemperatura, botaoOK);
-    }
-    if (opcoes[percorrerOpcoes] == "alterarSolucao")
-    {
+      break;
+    case 3:
       confirmarSelecao(alterarVolumeSolucao, botaoOK);
-    }
-    if (opcoes[percorrerOpcoes] == "monitoramento")
-    {
+      break;
+    case 4:
       while (digitalRead(botaoRemover) == LOW)
       {
         printInformacoes();
       }
+      break;
     }
     delay(1500);
   }
@@ -317,10 +321,11 @@ void selecionarOpcao()
 void confirmarSelecao(void (*funcao)(), uint8_t botao)
 {
   delay(1000);
+  lcd.clear();
   for (float i = timer / 2; i >= 0; i--)
   {
     Serial.print("Pressione novamente para continuar ");
-    printOpcoesLCD("Pressione novamente para continuar ", String(i / 10));
+    printOpcoesLCD("Pressione", String(i / 10));
     if (digitalRead(botao) == HIGH)
     {
       funcao();
@@ -411,6 +416,7 @@ void alterarVolumeSolucao()
   for (uint8_t i = 0; i < 3; i++)
   {
     // timer para evitar o bounce do pushbutton
+    printOpcoesLCD(solucao[i], String(volSolucao[i]));
     delay(1500);
     lcd.clear();
     while (digitalRead(botaoOK) == LOW)
@@ -419,8 +425,6 @@ void alterarVolumeSolucao()
       Serial.print(solucao[i]);
       Serial.print(" : ");
       Serial.println(volSolucao[i]);
-
-      printOpcoesLCD(solucao[i], String(volSolucao[i]));
 
       // incrementa o valo ao votao ser pressionado
       if (digitalRead(botaoSetaDireita) == HIGH)
@@ -449,6 +453,7 @@ void alterarVolumeSolucao()
 
   // confirma se deseja salvar dados na memoria
   Serial.println("Salvar na memoria ?");
+  lcd.clear();
   printOpcoesLCD("Salvar na memoria ?", "");
   confirmarSelecao(salvarSolucaoNaEEPROM, botaoOK);
 }
@@ -526,6 +531,8 @@ void alterarTemperatura()
 void salvarTempNaEEPROM()
 {
   Serial.println("-SALVANDO NA EEPROM-");
+  lcd.clear();
+  printOpcoesLCD("Salvando", "temperatura");
   EEPROM.update(EEPROM_TEMP_PRE_EXAGUE, tempPreEnxaguePersonalizado);
   EEPROM.update(EEPROM_TEMP_ALC, tempAlcPersonalizado);
   EEPROM.update(EEPROM_TEMP_ACID, tempAcidPersonalizado);
@@ -596,6 +603,7 @@ void cicloCIP()
 {
   Serial.println();
   Serial.println("Inicializando ciclo CIP...");
+  printOpcoesLCD("Inicializando", "ciclo CIP...");
   // rotina pre-enxague
   rotinaPreEnxague();
 
@@ -634,7 +642,7 @@ void cicloPersonalizado()
     printOpcoesLCD("Personalizado", percorrerCicloPersonalinado[countPercorrerCicloPersonalizado]);
 
     // navegando para a direita sobre as opcoes
-    if (digitalRead(botaoSetaDireita) == HIGH && countPercorrerCicloPersonalizado < 1)
+    if (digitalRead(botaoSetaDireita) == HIGH && countPercorrerCicloPersonalizado < 2)
     {
       countPercorrerCicloPersonalizado++;
       delay(delaySetas);
@@ -650,12 +658,24 @@ void cicloPersonalizado()
     }
   }
 
-  if (countPercorrerCicloPersonalizado == 0)
+  switch (countPercorrerCicloPersonalizado)
   {
-    //  usar ciclo criado
+  case 0:
     confirmarSelecao(usarCicloPersonalizado, botaoOK);
+    break;
+  case 1:
+    confirmarSelecao(criarCicloPersonalizado, botaoOK);
+    break;
+  case 2:
+    lcd.clear();
+    while (digitalRead(botaoRemover) == LOW)
+    {
+      Serial.println("Cheguei aqui");
+      printarCicloPersonalizado();
+    }
+    break;
   }
-  else
+  if (countPercorrerCicloPersonalizado == 1)
   {
     // criar ciclo personalizado
     confirmarSelecao(criarCicloPersonalizado, botaoOK);
@@ -679,13 +699,16 @@ void criarCicloPersonalizado()
   uint8_t percorrerPossiveisRotinas = 0; // percorrendo vetor de string  representando as possiveis rotinas
   uint8_t percorrerRotinas = 0;          // percorrendo o vetor de rotinas salvas
   lcd.clear();
-  printOpcoesLCD("Ciclo personalizado", "");
+  printOpcoesLCD("Criar", "ciclo");
   delay(1500);
+  lcd.clear();
 
-  while (digitalRead(interruptPushButton) == LOW)
+  while (digitalRead(interruptPushButton))
   {
     Serial.println(possiveisRotinas[percorrerPossiveisRotinas]);
-    printOpcoesLCD(possiveisRotinas[percorrerPossiveisRotinas], "");
+    printOpcoesLCD("", possiveisRotinas[percorrerPossiveisRotinas]);
+
+    uint8_t tamVetorRotinas = sizeof(vetorRotinas) / sizeof(vetorRotinas[0]);
 
     if (digitalRead(botaoSetaDireita) == HIGH && percorrerPossiveisRotinas < 4)
     {
@@ -703,63 +726,86 @@ void criarCicloPersonalizado()
 
     if (digitalRead(botaoOK) == HIGH)
     {
-      if (possiveisRotinas[percorrerPossiveisRotinas] == "pre-enxague")
+      switch (percorrerPossiveisRotinas)
       {
+      case 0:
         vetorRotinas[percorrerRotinas] = 1;
-      }
-      if (possiveisRotinas[percorrerPossiveisRotinas] == "lavagem-intermitente")
-      {
+        break;
+      case 1:
         vetorRotinas[percorrerRotinas] = 2;
-      }
-      if (possiveisRotinas[percorrerPossiveisRotinas] == "alcalina")
-      {
+        break;
+      case 2:
         vetorRotinas[percorrerRotinas] = 3;
-      }
-      if (possiveisRotinas[percorrerPossiveisRotinas] == "acido")
-      {
+        break;
+      case 3:
         vetorRotinas[percorrerRotinas] = 4;
-      }
-      if (possiveisRotinas[percorrerPossiveisRotinas] == "sanitizante")
-      {
+        break;
+      case 4:
         vetorRotinas[percorrerRotinas] = 5;
+        break;
       }
 
-      if (percorrerRotinas < sizeof(vetorRotinas) / sizeof(vetorRotinas))
+      if (percorrerRotinas < tamVetorRotinas)
       {
         percorrerRotinas++;
       }
       else
       {
+        lcd.clear();
+        printOpcoesLCD("VETOR CHEIO", "");
         Serial.println("vetor cheio");
       }
       delay(delaySetas);
+      lcd.clear();
     }
 
     if (digitalRead(botaoRemover) == HIGH)
     {
-      if (percorrerRotinas > 0 && percorrerRotinas <= sizeof(vetorRotinas) / sizeof(vetorRotinas))
+      if (percorrerRotinas > 0 && percorrerRotinas <= tamVetorRotinas)
       {
+        lcd.clear();
         percorrerRotinas--;
         vetorRotinas[percorrerRotinas] = 255;
         Serial.println("removendo item");
+        printOpcoesLCD("Removendo etapa", "");
       }
       else
       {
         Serial.println("vetor vazio");
+        printOpcoesLCD("VETOR VAZIO", "");
       }
       delay(delaySetas);
+      lcd.clear();
     }
 
-    for (uint8_t count = 0; count < sizeof(vetorRotinas) / sizeof(uint8_t); count++)
-    {
-      if (vetorRotinas[count] != 255)
-      {
-      }
-    }
+    
+    //essa porra ta dando problema corrigir ainda hoje
+    printarCicloPersonalizado();
   }
 
   Serial.println("Salvar ciclo na memoria?");
+  printOpcoesLCD("Salvar ciclo", "na memoria?");
+  delay(1500);
   confirmarSelecao(salvarCicloPersonalizado, botaoOK);
+}
+
+/**
+ * @brief imprimindo ciclo personalizado na memoria
+ *
+ */
+void printarCicloPersonalizado()
+{
+  String printarOrdemCiclo;
+  for (uint8_t count = 0; count < sizeof(vetorRotinas) / sizeof(uint8_t); count++)
+  {
+    if (vetorRotinas[count] != 255)
+    {
+      printarOrdemCiclo += String(vetorRotinas[count]);
+      printarOrdemCiclo += " ";
+      // printar o array de rotinas salvas
+    }
+  }
+  printOpcoesLCD(printarOrdemCiclo, "");
 }
 
 /**
@@ -769,6 +815,7 @@ void criarCicloPersonalizado()
 void usarCicloPersonalizado()
 {
   Serial.println("usando ciclo salvo na memoria");
+  printOpcoesLCD("Usando ciclo", "salvo");
   for (uint8_t i = 0; i < sizeof(vetorRotinas) / sizeof(int); i++)
   {
     Serial.print(" ");
@@ -806,6 +853,8 @@ void usarCicloPersonalizado()
 void salvarCicloPersonalizado()
 {
   Serial.println("salvando ciclo na memoria...");
+  lcd.clear();
+  printOpcoesLCD("Salvando ciclo", "na memoria");
   delay(500);
   for (uint8_t i = 0; i < 10; i++)
   {
@@ -832,6 +881,7 @@ void salvarCicloPersonalizado()
   }
   Serial.println("ciclo salvo!");
   delay(500);
+  lcd.clear();
 }
 
 /**
@@ -1083,6 +1133,7 @@ void estadoBombas(uint8_t volAlc, uint8_t volAcid, uint8_t volSanit)
  */
 void printInformacoes()
 {
+
   /*
   if ((millis() - tempo_ultima_coleta) > COLETA_DELAY)
   {
