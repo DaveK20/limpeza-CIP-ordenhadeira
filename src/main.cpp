@@ -2,8 +2,8 @@
  * @file main.cpp
  * @author DaveK2 (davefr@outlook.com.br)
  * @brief CIP ordenhadeira Campus Bom Jesus do Itabapoana
- * @version 0.8.4
- * @date 2023-02-16
+ * @version 0.8.5
+ * @date 2023-03-05
  *
  * @copyright Copyright (c) 2023
  *
@@ -16,16 +16,13 @@ OBJETIVOS RESTANTES
   [] - precisao das bombas peristalticas
   [] - controle da contatora
   [] - controle da resistencia
-  [] - painel de controle para o usuario
+  [x] - painel de controle para o usuario
   [] - primeiro teste do prototipo
-  [] - display de informacoes uteis
+  [x] - display de informacoes uteis
 
   IMPORTANTE!!!
   Olhar rotinas CIP e corrigir inconsistencias
   remover variaveis desnecessarias
-
-  correcao do interrupt, fazer com que o while funcione somente enqunato o interrupt seja falso e colocar
-  um tempo para que o interrupt seja desativado novamente com millis()
 */
 
 #include <Arduino.h>
