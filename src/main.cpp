@@ -37,8 +37,6 @@ void estadoBombas(uint8_t, uint8_t, uint8_t);
 void aquecerResistencia(uint8_t);
 void misturar(uint8_t);
 void esvaziarTanque(float);
-void adicionarSolucao(float, uint8_t);
-void converterProgramaParaEEPROM(float, uint8_t);
 void confirmarSelecao(void (*funcao)(), uint8_t botao);
 void printOpcoesLCD(String linha0, String linha1);
 void printInformacoes();
@@ -72,18 +70,20 @@ float calcSolucao(float);
 float tempAgua();
 
 // CONTROLE RELAYS
-#define pinBoia 3                  // futuramente substituir pelo ultrassonico se necessario
-#define relayAlc 4                 // bomba peristaltica alcalina
-#define relayAcid 5                // bomba peristaltica acida
-#define relaySanit 6               // bomba peristaltica sanitizante
-#define relayEncherTanque 7        // solenoide responsavel por encher tanque
-#define relayEsvaziarTanque 8      // solenoide responsavel por esvaziar
-#define relayResistencia 10        // aquecer agua
-#define botaoRemover 14            // botao alterar volume das solucoes
-#define botaoSetaDireita 9         // botao de interacao com o sistema
-#define botaoSetaEsquerda 13       // botao de interacao com o sistema
-#define botaoOK 12                 // botao para confirmacao das selecoes
+#define pinBoia 3             // futuramente substituir pelo ultrassonico se necessario
+#define relayAlc 4            // bomba peristaltica alcalina
+#define relayAcid 5           // bomba peristaltica acida
+#define relaySanit 6          // bomba peristaltica sanitizante
+#define relayEncherTanque 7   // solenoide responsavel por encher tanque
+#define relayEsvaziarTanque 8 // solenoide responsavel por esvaziar
+#define relayResistencia 10   // aquecer agua
+
+#define botaoSetaEsquerda 8        // botao de interacao com o sistema
+#define botaoOK 9                  // botao para confirmacao das selecoes
+#define botaoSetaDireita 10        // botao de interacao com o sistema
 #define botaoInterromperOperacao 2 // botao de interrupcao de ciclo
+#define botaoRemover 11            // botao alterar volume das solucoes
+#define tempSensor 10              // DS18B20
 
 // POSICOES NA EEPROM, ONDE AS SOLUCOES SERAO SALVAS
 #define EEPROM_ALC 10
@@ -104,7 +104,7 @@ float tempAgua();
 LiquidCrystal_I2C lcd(ende, col, lin); // Chamada da funcação LiquidCrystal para ser usada com o I2C
 
 // PINOS LEITURA
-#define tempSensor 11 // DS18B20
+
 OneWire oneWire(tempSensor);
 DallasTemperature sensors(&oneWire); // encaminha referências OneWire para o sensor
 
@@ -148,6 +148,7 @@ bool interromper = false;           // interromper ciclo
 unsigned long tempo_ultima_coleta;
 unsigned long last_interrupt_time;
 
+// Tamanho do vetor de rotinas
 uint8_t tamVetorRotinas = sizeof(vetorRotinas) / sizeof(vetorRotinas[0]);
 
 const char *opcoes[] = {"CIP", "Personalizado", "Temperatura", "Solucao"};                        // painel de selecao selecionarOpcao()
@@ -216,8 +217,20 @@ void loop()
     Serial.println("baixo");
   }*/
 
-  selecionarOpcao();
+  // selecionarOpcao();
+  sensors.requestTemperatures();
 
+  // print the temperature in Celsius
+  Serial.print("Temperature: ");
+  Serial.print(sensors.getTempCByIndex(0));
+  Serial.print((char)176); // shows degrees character
+  Serial.print("C  |  ");
+
+  // print the temperature in Fahrenheit
+  Serial.print((sensors.getTempCByIndex(0) * 9.0) / 5.0 + 32.0);
+  Serial.print((char)176); // shows degrees character
+  Serial.println("F");
+  delay(2000);
   if (interromper == true)
   {
     if ((millis() - last_interrupt_time) > INTERRUPT_DELAY)
@@ -237,16 +250,16 @@ void loop()
  */
 void printOpcoesLCD(String linha0, String linha1)
 {
+  lcd.setCursor(15, 0);
   if (interromper == true)
   {
-    lcd.setCursor(15, 0);
     lcd.print("*");
   }
   else
   {
-    lcd.setCursor(15, 0);
     lcd.print("");
   }
+
   lcd.setCursor(requiredOffset(linha0), 0);
   lcd.print(linha0);
 
@@ -257,7 +270,7 @@ void printOpcoesLCD(String linha0, String linha1)
 /**
  * @brief printa no centro do LCD I2C
  *
- * @param palavra a ser verificada
+ * @param palavra a ser alinhada
  * @return posicao central a ser escrita
  */
 uint8_t requiredOffset(String palavra)
@@ -348,7 +361,7 @@ void confirmarSelecao(void (*funcao)(), uint8_t botao)
 }
 
 /**
- * @brief converte e salva o valor da solucao na EEPROM
+ * @brief converte e salva o valor da solucao na EEPROM com um erro de 0.05ml
  *
  * @param solucao a ser convertida
  * @param posicao a ser salva na memoria
@@ -366,7 +379,7 @@ void converterProgramaParaEEPROM(float solucao, uint8_t posicao)
 /**
  * @brief converte os valores que estao sendo pegos na EEPROM
  *
- * @param posicao da memoria na EEPROM definidas como 11 (alcalina),12 (acida) e 13 (sanitizante)
+ * @param posicao da memoria na EEPROM definidas como 10 (alcalina),11 (acida) e 12 (sanitizante)
  * @return float
  */
 float converterEEPROMParaPrograma(uint8_t posicao)
@@ -378,7 +391,7 @@ float converterEEPROMParaPrograma(uint8_t posicao)
 }
 
 /**
- * @brief define os valores das solucoes com valores salvos na EEPROM 11 (alcalina),12 (acida) e 13 (sanitizante)
+ * @brief define os valores das solucoes com valores salvos na EEPROM 10 (alcalina),11 (acida) e 12 (sanitizante)
  *
  */
 void pegarVolSolucaoEEPROM()
@@ -558,7 +571,7 @@ void salvarTempNaEEPROM()
 }
 
 /**
- * @brief define os valores das solucoes com valores salvos na EEPROM 11 (alcalina),12 (acida) e 13 (sanitizante)
+ * @brief define os valores das solucoes com valores salvos na EEPROM 10 (alcalina),11 (acida) e 12 (sanitizante)
  *
  */
 void pegarTempSolucaoEEPROM()
@@ -596,10 +609,10 @@ void interrupcao()
     {
       esvaziarTanque(tempAgua());
     }
+    lcd.clear();
+    printOpcoesLCD("Ciclo", "cancelado");
+    delay(1000);
   }
-  lcd.clear();
-  printOpcoesLCD("Ciclo", "cancelado");
-  delay(1000);
 }
 
 /**
@@ -1140,16 +1153,16 @@ float tempAgua()
   {
     printOpcoesLCD("", "Erro de sensor");
     Serial.println("Erro ao detectar sensor");
-    return;
+    return 666;
   }
 }
 
 /**
  * @brief controle das tres bombas peristalticas HIGH - Desativado || LOW - Ativado
  *
- * @param volAcid
- * @param volAlc
- * @param volSanit
+ * @param volAcid bomba acida
+ * @param volAlc bomba alcalina
+ * @param volSanit bomba sanitizante
  */
 void estadoBombas(uint8_t volAlc, uint8_t volAcid, uint8_t volSanit)
 {
