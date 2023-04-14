@@ -206,8 +206,6 @@ void loop()
   estadoBombas(HIGH, HIGH, HIGH);
   teste = true;
 
-
-
   if (digitalRead(botaoOK) == HIGH)
   {
     Serial.println("alto");
@@ -220,7 +218,7 @@ void loop()
   // selecionarOpcao();
   sensors.requestTemperatures();
 
-  // print the temperature in Celsius
+    // print the temperature in Celsius
   Serial.print("Temperature: ");
   Serial.print(sensors.getTempCByIndex(0));
   Serial.print((char)176); // shows degrees character
@@ -231,6 +229,7 @@ void loop()
   Serial.print((char)176); // shows degrees character
   Serial.println("F");
   delay(2000);
+
   if (interromper == true)
   {
     if ((millis() - last_interrupt_time) > INTERRUPT_DELAY)
@@ -1149,12 +1148,9 @@ float tempAgua()
   {
     return sensors.getTempCByIndex(0); // temp do sensor indice 0
   }
-  if (sensors.isConversionComplete() == false)
-  {
     printOpcoesLCD("", "Erro de sensor");
     Serial.println("Erro ao detectar sensor");
     return 666;
-  }
 }
 
 /**
