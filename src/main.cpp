@@ -2,8 +2,8 @@
  * @file main.cpp
  * @author DaveK2 (davefr@outlook.com.br)
  * @brief CIP ordenhadeira Campus Bom Jesus do Itabapoana
- * @version 0.8.5
- * @date 2023-03-05
+ * @version 0.8.6
+ * @date 2023-04-18
  *
  * @copyright Copyright (c) 2023
  *
@@ -13,7 +13,7 @@
 OBJETIVOS RESTANTES
   [] - ter uma nocao do tempo necessario para esvaziar o tanque e mostrar no display
   [x] - ciclo personalizado
-  [] - precisao das bombas peristalticas
+  [x] - precisao das bombas peristalticas
   [] - controle da contatora
   [] - controle da resistencia
   [x] - painel de controle para o usuario
@@ -128,18 +128,13 @@ uint8_t tempAlcPersonalizado = 0;
 uint8_t tempAcidPersonalizado = 0;
 uint8_t tempPreEnxaguePersonalizado = 0;
 
-/*
-  23/11/2022 - Calibração das bombas peristálticas com copo graduado impreciso
-  100ml ~ 65 segundos
-  aproximadamente 1,538 ml/s
-  */
-float um_ml = 1.66;                               // volume de despejado por 1s
-float ml_inserido = 200;                          // volume inserido como teste
-float bomba_delay = (ml_inserido / um_ml) * 1000; // calculo de despejo da bomba
-uint8_t timer = 100;                              // timer de espera para o usuario apertar o botao
-uint8_t vetorRotinas[10];                         // vetor para salvar um ciclo de limpeza personalizado
-uint16_t delaySetas = 300;                        // delay das setas de selecao
-uint8_t percorrerOpcoes = 0;                      // opcoes do vetor de selecao
+float fluxo_bomba = 2; //Fluxo em ml/s da bomba peristáltica previamente calibrada.
+uint8_t vol_tanque = 50;
+
+uint8_t timer = 100;         // timer de espera para o usuario apertar o botao
+uint8_t vetorRotinas[10];    // vetor para salvar um ciclo de limpeza personalizado
+uint16_t delaySetas = 300;   // delay das setas de selecao
+uint8_t percorrerOpcoes = 0; // opcoes do vetor de selecao
 
 #define DELAY_ESVAZIAR_TANQUE 18000 // tempo estimado para que o tanque fique vazio
 #define COLETA_DELAY 3000           // coleta e amostragem dos dados de temperatura e status das bombas
@@ -196,29 +191,10 @@ void setup()
 
 void loop()
 {
-  /*
-  if (teste == false)
-  {
-    estadoBombas(LOW, LOW, LOW);
-    Serial.println(calcSolucao(volAcid));
-    delay(bomba_delay);
-  }
-  estadoBombas(HIGH, HIGH, HIGH);
-  teste = true;
-
-  if (digitalRead(botaoOK) == HIGH)
-  {
-    Serial.println("alto");
-  }
-  else
-  {
-    Serial.println("baixo");
-  }*/
-
   // selecionarOpcao();
   sensors.requestTemperatures();
 
-    // print the temperature in Celsius
+  // print the temperature in Celsius
   Serial.print("Temperature: ");
   Serial.print(sensors.getTempCByIndex(0));
   Serial.print((char)176); // shows degrees character
@@ -1133,7 +1109,10 @@ void rotinaSanitizante()
  */
 float calcSolucao(float solucao)
 {
-  return ((solucao * 50) / um_ml) * 1000;
+  //A dosagem total de produto referente a solução por litro e o volume do tanque.
+  float dosagem = solucao * vol_tanque; 
+  //O tempo de dosagem corresponde a quantidade total de dosagem a ser utilizada multiplicada pelo fluxo da bomba.
+  return (dosagem / fluxo_bomba)*1000; 
 }
 
 /**
@@ -1148,9 +1127,9 @@ float tempAgua()
   {
     return sensors.getTempCByIndex(0); // temp do sensor indice 0
   }
-    printOpcoesLCD("", "Erro de sensor");
-    Serial.println("Erro ao detectar sensor");
-    return 666;
+  printOpcoesLCD("", "Erro de sensor");
+  Serial.println("Erro ao detectar sensor");
+  return 666;
 }
 
 /**
