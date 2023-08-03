@@ -2,7 +2,7 @@
  * @file main.cpp
  * @author DaveK2 (davefr@outlook.com.br)
  * @brief CIP ordenhadeira Campus Bom Jesus do Itabapoana
- * @version 0.9
+ * @version 0.9.1
  * @date 2023-08-02
  *
  * @copyright Copyright (c) 2023
@@ -43,8 +43,6 @@ void encherTanque(uint8_t, uint8_t);
 void rotinaSolucao(uint8_t solucao, float volSolucao, uint8_t tempSolucao);
 void rotinaPreEnxague();
 void rotinaEnxague();
-void rotinaBase();
-void rotinaAcida();
 void rotinaSanitizante();
 void interromperOperacao();
 void cicloCIP();
@@ -75,8 +73,8 @@ float tempAgua();
 
 // CONTROLE RELAYS
 #define relayResistencia 10 // aquecer agua
-#define relayAlc 45         // bomba peristaltica alcalina
-#define relayAcid 43        // bomba peristaltica acida
+#define relayAlc 43         // bomba peristaltica alcalina
+#define relayAcid 45        // bomba peristaltica acida
 #define relaySanit 41       // bomba peristaltica sanitizante
 #define vs_ciclo 35         // valvula de inox
 #define vs_vasao 33         // valvula de inox
@@ -90,7 +88,7 @@ float tempAgua();
 #define botaoInterromperOperacao 46 // botao de interrupcao de ciclo
 #define botaoRemover 48             // botao alterar volume das solucoes BRANCO
 #define boiaSolucao 49              // boia do tanque de solucao
-#define boiaMistura 666             // boia do tanque de mistura
+#define boiaMistura 20              // boia do tanque de mistura
 
 #define tempSensor 10 // DS18B20
 
@@ -104,12 +102,12 @@ float tempAgua();
 #define EEPROM_TEMP_ALC 14
 #define EEPROM_TEMP_ACID 15
 
-#define INTERRUPT_DELAY 20000       // delay minimo até ser possivel acionar a proxima interrupcao
-#define circularSolucao 300000      // tempo que a solucao alcalina/acida vai circular no sistema
-#define DELAY_ESVAZIAR_TANQUE 20000 // tempo estimado para que o tanque fique vazio
-#define COLETA_DELAY 3000           // coleta e amostragem dos dados de temperatura e status das bombas
-
-LiquidCrystal_I2C lcd(ende, col, lin); // Chamada da funcação LiquidCrystal para ser usada com o I2C
+#define tempoInterrupcao 20000          // delay minimo até ser possivel acionar a proxima interrupcao
+#define tempoCirculacaoSolucao 300000   // tempo que a solucao alcalina/acida vai circular no sistema
+#define tempoEsvaziarTanque 20000       // tempo estimado para que o tanque fique vazio
+#define tempoColetaDados 3000           // coleta e amostragem dos dados de temperatura e status das bombas
+#define tempoPosicionamentoValvula 10000 // tempo de posicionamento das valvulas solenoide
+LiquidCrystal_I2C lcd(ende, col, lin);  // Chamada da funcação LiquidCrystal para ser usada com o I2C
 
 // PINOS LEITURA
 
@@ -149,7 +147,6 @@ bool interromper = false; // interromper ciclo
 
 unsigned long tempo_ultima_coleta;
 unsigned long last_interrupt_time;
-float temperatura;
 
 // Tamanho do vetor de rotinas
 uint8_t tamVetorRotinas = sizeof(vetorRotinas) / sizeof(vetorRotinas[0]);
@@ -205,14 +202,7 @@ void loop()
 {
   // cicloCIP();
 
-  digitalWrite(vs_tm, LOW);
-  digitalWrite(vs_ts, LOW);
-  digitalWrite(vs_ciclo, LOW);
-  digitalWrite(vs_vasao, LOW);
-
-  cicloCIP();
-
-  /*if (!digitalRead(botaoSetaEsquerda))
+  if (!digitalRead(botaoSetaEsquerda))
   {
     Serial.println("ESQUERDA");
   }
@@ -231,13 +221,13 @@ void loop()
   if (!digitalRead(botaoInterromperOperacao))
   {
     Serial.println("INTERROMPER");
-  }*/
+  }
 
   /*selecionarOpcao();
 
   if (interromper == true)
   {
-    if ((millis() - last_interrupt_time) > INTERRUPT_DELAY)
+    if ((millis() - last_interrupt_time) > tempoInterrupcao)
     {
       lcd.clear();
       interromper = false;
@@ -863,11 +853,11 @@ void usarCicloPersonalizado()
     }
     if (EEPROM.read(i) == 3) // rotina base
     {
-      rotinaBase();
+      rotinaSolucao(1, volAlc, tempAlc);
     }
     if (EEPROM.read(i) == 4) // rotina acida
     {
-      rotinaAcida();
+      rotinaSolucao(2, volAcid, tempAcid);
     }
     if (EEPROM.read(i) == 5) // rotina sanitizante
     {
@@ -924,6 +914,7 @@ void salvarCicloPersonalizado()
  */
 void encherTanque(uint8_t resistencia, uint8_t tanque)
 {
+  Serial.println("========== ENCHER TANQUE ==========");
   if (!interromper)
   {
     Serial.println("Enchendo tanque...");
@@ -935,6 +926,7 @@ void encherTanque(uint8_t resistencia, uint8_t tanque)
       digitalWrite(tanque, HIGH);           // despejando agua no tanque
     }
     digitalWrite(tanque, LOW); // fechando valvula
+    delay(tempoPosicionamentoValvula);
     Serial.println("Tanque Cheio");
 
     lcd.clear();
@@ -950,6 +942,7 @@ void encherTanque(uint8_t resistencia, uint8_t tanque)
       aquecerResistencia(HIGH); // desligar resistencia
     }
   }
+  Serial.println("===============================");
 }
 
 /**
@@ -960,6 +953,7 @@ void encherTanque(uint8_t resistencia, uint8_t tanque)
  */
 void esvaziarTanque(float tempSolucao)
 {
+  Serial.println("========== ESVAZIAR TANQUE ==========");
   if (interromper == false)
   {
     uint16_t ultimos_segundos;
@@ -981,7 +975,7 @@ void esvaziarTanque(float tempSolucao)
     printOpcoesLCD("Despejando agua", "...");
 
     Serial.println("Despejando agua...");
-    delay(DELAY_ESVAZIAR_TANQUE);
+    delay(tempoEsvaziarTanque);
     Serial.println("Agua despejada");
 
     lcd.clear();
@@ -990,6 +984,7 @@ void esvaziarTanque(float tempSolucao)
     Serial.println("desativando succao da ordenha");
     digitalWrite(ControleOrdenha, HIGH); // DESATIVAR SUCCAO DO SISTEMA
   }
+  Serial.println("===============================");
 }
 
 /**
@@ -1000,6 +995,7 @@ void esvaziarTanque(float tempSolucao)
  */
 void adicionarSolucao(float solucao_ml, uint8_t relay)
 {
+  Serial.println("========== ADICIONAR SOLUCAO ==========");
   lcd.clear();
   printOpcoesLCD("Adicionando", "");
   if (interromper == false)
@@ -1011,14 +1007,12 @@ void adicionarSolucao(float solucao_ml, uint8_t relay)
       Serial.println("base");
       estadoBombas(LOW, HIGH, HIGH);
     }
-
     else if (relay == 2)
     {
       printOpcoesLCD("", "acido");
       Serial.println("acida");
       estadoBombas(HIGH, LOW, HIGH);
     }
-
     else if (relay == 3)
     {
       printOpcoesLCD("", "sanitizante");
@@ -1030,6 +1024,7 @@ void adicionarSolucao(float solucao_ml, uint8_t relay)
     estadoBombas(HIGH, HIGH, HIGH);
     Serial.println("Solucao Adicionada!");
   }
+  Serial.println("===============================");
 }
 
 /**
@@ -1039,10 +1034,11 @@ void adicionarSolucao(float solucao_ml, uint8_t relay)
  */
 void aquecerResistencia(uint8_t status)
 {
+  Serial.println("========== AQUECER RESISTENCIA ==========");
   if (interromper == false)
   {
     lcd.clear();
-    if (status == LOW && !boiaSolucao)
+    if (status == LOW)
     {
       printOpcoesLCD("Ligando", "resistencia");
       Serial.println("Ligando resistencia");
@@ -1055,6 +1051,7 @@ void aquecerResistencia(uint8_t status)
       digitalWrite(relayResistencia, HIGH);
     }
   }
+  Serial.println("===============================");
 }
 
 /**
@@ -1083,6 +1080,7 @@ void rotinaPreEnxague()
     else
     {
       digitalWrite(vs_tm, HIGH);
+      delay(tempoPosicionamentoValvula);
     }
 
     Serial.println("ativando succao da ordenha");
@@ -1119,7 +1117,6 @@ void rotinaEnxague()
  */
 void rotinaSolucao(uint8_t solucao, float volSolucao, uint8_t tempSolucao)
 {
-
   lcd.clear();
   if (solucao == 1)
   {
@@ -1142,50 +1139,14 @@ void rotinaSolucao(uint8_t solucao, float volSolucao, uint8_t tempSolucao)
   adicionarSolucao(volSolucao, solucao); // adicionar solucao
   esvaziarTanque(tempSolucao);           // liberar apos atingir temperatura
   digitalWrite(vs_ciclo, LOW);           // puxando do tanque de mistura
-  delay(6000);                           // tempo para as valvulas se posicionarem
+  delay(tempoPosicionamentoValvula);     // tempo para as valvulas se posicionarem
   digitalWrite(ControleOrdenha, LOW);    // ativar succao
   Serial.println("ativando succao");
   Serial.println("circulando solucao");
-  delay(circularSolucao);     // tempo de circulacao da solucao na ordenha
-  esvaziarTanque(tempAgua()); // despejando a agua destante
-}
-
-/**
- * @brief rotina da solucao base adicionada na agua
- *
- */
-void rotinaBase()
-{
-  Serial.println();
-  Serial.println("ROTINA BASE");
-  lcd.clear();
-  printOpcoesLCD("ROTINA", "BASE");
-  encherTanque(1, vs_ts);      // adicionar agua
-  adicionarSolucao(volAlc, 1); // adicionar solucao
-  digitalWrite(vs_vasao, LOW); // apontando para o tanque de mistura
-  digitalWrite(vs_tm, HIGH);
-  esvaziarTanque(tempAlc); // liberar apos atingir temperatura
-
-  digitalWrite(vs_tm, LOW);
-  delay(6000);
-  // ativar succao
-  delay(circularSolucao);
-  // desativar succao
-}
-
-/*
- * @brief rotina da solucao acida adicionada na agua
- */
-void rotinaAcida()
-{
-  Serial.println();
-  Serial.println("ROTINA ACIDO");
-  lcd.clear();
-  printOpcoesLCD("ROTINA", "ACIDA");
-  // encherTanque(1, vs_ts); // adicionar agua
-
-  adicionarSolucao(volAcid, 2); // adicionar solucao
-  // esvaziarTanque(tempAcid, vs_vasao); // liberar apos atingir temperatura
+  delay(tempoCirculacaoSolucao);     // tempo de circulacao da solucao na ordenha
+  digitalWrite(vs_vasao, HIGH);      // apontando para fora
+  delay(tempoPosicionamentoValvula); // tempo para as valvulas se posicionarem
+  esvaziarTanque(tempAgua());        // despejando a agua destante
 }
 
 /**
