@@ -38,7 +38,6 @@ void aquecerResistencia(uint8_t);
 void esvaziarTanque(float);
 void confirmarSelecao(void (*funcao)(), uint8_t botao);
 void printOpcoesLCD(String linha0, String linha1);
-void printInformacoes();
 void encherTanque(uint8_t, uint8_t, uint8_t);
 void rotinaSolucao(uint8_t solucao, float volSolucao, uint8_t tempSolucao);
 void rotinaPreEnxague();
@@ -73,15 +72,17 @@ float tempAgua();
 #define ende 0x27 // Serve para definir o endereço do display.
 
 // CONTROLE RELAYS
-#define relayAlc 31         // bomba peristaltica alcalina
-#define relayAcid 33        // bomba peristaltica acida
-#define relaySanit 35       // bomba peristaltica sanitizante
-#define vs_ciclo 37         // valvula de inox conectado com o tanque de aquecimento e mistura
-#define vs_vasao 39         // valvula de inox direcionada para o tanque de aquecimento e a saida
-#define vs_ts 41            // valvula de latao do tanque de aquecimento
-#define vs_tm 43            // valvula de latao do tanque de mistura
-#define ControleOrdenha 47  // acionamneto da succao da ordenha
-#define relayResistencia 10 // aquecer agua
+#define relayAlc 31        // bomba peristaltica alcalina
+#define relayAcid 33       // bomba peristaltica acida
+#define relaySanit 35      // bomba peristaltica sanitizante
+#define vs_ciclo 37        // valvula de inox conectado com o tanque de aquecimento e mistura
+#define vs_vasao 39        // valvula de inox direcionada para o tanque de aquecimento e a saida
+#define vs_ts 41           // valvula de latao do tanque de aquecimento
+#define vs_tm 43           // valvula de latao do tanque de mistura
+#define ControleOrdenha 47 // acionamneto da succao da ordenha
+#define relayResistencia 8 // aquecer agua
+
+uint8_t vetorReles[9] = {relayAlc, relayAcid, relaySanit, vs_ciclo, vs_vasao, vs_ts, vs_tm, ControleOrdenha, relayResistencia};
 
 #define botaoSetaEsquerda 40        // botao de interacao com o sistema AZUL
 #define botaoOK 42                  // botao para confirmacao das selecoes
@@ -89,9 +90,10 @@ float tempAgua();
 #define botaoRemover 46             // botao alterar volume das solucoes BRANCO
 #define botaoInterromperOperacao 19 // botao de interrupcao de ciclo
 #define boiaSolucao 30              // boia do tanque de aquecimento
-#define boiaMistura 32              // boia do tanque de mistura
+#define boiaMistura 30              // boia do tanque de mistura
 
 #define tempSensor 10 // DS18B20
+#define LED_STATUS_SENSOR 17
 
 // POSICOES NA EEPROM, ONDE AS SOLUCOES SERAO SALVAS
 #define EEPROM_ALC 10
@@ -104,8 +106,8 @@ float tempAgua();
 #define EEPROM_TEMP_ACID 15
 
 #define tempoInterrupcao 3000            // delay minimo até ser possivel acionar a proxima interrupcao
-#define tempoCirculacaoSolucao 180000    // tempo que a solucao alcalina/acida vai circular no sistema
-#define tempoEsvaziarTanque 180000       // tempo estimado para que o tanque fique vazio
+#define tempoCirculacaoSolucao 300000    // tempo que a solucao alcalina/acida vai circular no sistema
+#define tempoEsvaziarTanque 150000       // tempo estimado para que o tanque fique vazio
 #define tempoColetaDados 3000            // coleta e amostragem dos dados de temperatura e status das bombas
 #define tempoPosicionamentoValvula 10000 // tempo de posicionamento das valvulas solenoide
 #define tempoDisplay 100                 // tempo para atualizar informacoes no display
@@ -130,9 +132,9 @@ uint8_t vol_tanque = 50;
 
 // TEMPERATURAS IDEAIS DA AGUA
 // De acordo com o artigo "Limpeza e Desinfecção de Equipamentos de Ordenha e Tanques" de MARCOS VEIGA SANTOS
-uint8_t tempPreEnxague = 55; // temperatura na primeira lavagem
-uint8_t tempAlc = 75;        // solucao base
-uint8_t tempAcid = 43;       // solucao acida
+uint8_t tempPreEnxague = 39; // temperatura na primeira lavagem
+uint8_t tempAlc = 39;        // solucao base
+uint8_t tempAcid = 39;       // solucao acida
 
 uint8_t tempAlcPersonalizado = 0;
 uint8_t tempAcidPersonalizado = 0;
@@ -158,6 +160,15 @@ const char *possiveisRotinas[5] = {"Pre-enxague", "Enxague", "Alcalina", "Acida"
 const char *solucao[] = {"Alcalino", "Acido", "Sanitizante"};                                     // vetor do nome das solucoes a serem alteradas
 const char *stringTemp[] = {"Pre-enxague", "Alcalino", "Acido"};                                  // vetor da temperatura das solucoes e ciclos
 
+void definicaoInicialReles()
+{
+  estadoBombas(HIGH, HIGH, HIGH);
+  digitalWrite(relayResistencia, HIGH);
+  digitalWrite(ControleOrdenha, LOW);
+  digitalWrite(vs_tm, HIGH);
+  digitalWrite(vs_ts, HIGH);
+}
+
 void setup()
 {
   Serial.begin(9600);
@@ -182,16 +193,13 @@ void setup()
 
   attachInterrupt(digitalPinToInterrupt(botaoInterromperOperacao), interromperOperacao, CHANGE);
 
-  estadoBombas(HIGH, HIGH, HIGH);
-  digitalWrite(relayResistencia, HIGH);
-  digitalWrite(ControleOrdenha, LOW);
+  definicaoInicialReles();
 
   lcd.init();      // Serve para iniciar a comunicação com o display já conectado
   lcd.backlight(); // Serve para ligar a luz do display
   sensors.begin();
   EEPROM.begin();
 
-  Serial.println("Inicializando sistema...");
   printOpcoesLCD("Inicializando", "Sistema...");
   delay(2000);
 
@@ -203,40 +211,84 @@ void setup()
 }
 
 void loop()
-{ /*
-    * Teste dos botoes
-   if (!digitalRead(botaoSetaEsquerda))
-   {
-     Serial.println("ESQUERDA");
-   }
-   if (!digitalRead(botaoSetaDireita))
-   {
-     Serial.println("DIREITA");
-   }
-   if (!digitalRead(botaoOK))
-   {
-     Serial.println("OK");
-   }
-   if (!digitalRead(botaoRemover))
-   {
-     Serial.println("REMOVER");
-   }
-   if (!digitalRead(botaoInterromperOperacao))
-   {
-     Serial.println("INTERROMPER");
-   }*/
-
-  selecionarOpcao();
-
-  if (interromper)
+{
+  if (Serial.available())
   {
-    if ((millis() - ultima_interrupcao) > tempoInterrupcao)
+    String comando = Serial.readStringUntil('\n'); // lê até ENTER
+    comando.trim();                                // remove \r e espaços
+
+    Serial.print("Recebido: ");
+    Serial.println(comando);
+
+    if (comando == "cip")
     {
-      lcd.clear();
-      interromper = false;
-      ultima_interrupcao = millis();
+      cicloCIP();
+    }
+    else if (comando == "personalizado")
+    {
+      cicloPersonalizado();
+    }
+    else if (comando == "interromper")
+    {
+      interromperOperacao();
+    }
+    else if (comando == "teste_reles")
+    {
+      for (uint8_t i = 0; i < sizeof(vetorReles) / sizeof(vetorReles[0]); i++)
+      {
+        digitalWrite(vetorReles[i], HIGH);
+      }
+
+      for (uint8_t i = 0; i < sizeof(vetorReles) / sizeof(vetorReles[0]); i++)
+      {
+        digitalWrite(vetorReles[i], LOW);
+        delay(500);
+        digitalWrite(vetorReles[i], HIGH);
+        delay(500);
+      }
+      definicaoInicialReles();
+    }
+    else if (comando == "ler_temp")
+    {
+      float temperatura = tempAgua();
+      Serial.print("Temperatura da agua: ");
+      Serial.print(temperatura);
+      Serial.println(" C");
+    }
+    else if (comando == "chk_temp")
+    {
+      if (sensors.isConnected(0))
+      {
+        Serial.println("Sensor de temperatura conectado.");
+      }
+      else
+      {
+        Serial.println("Sensor de temperatura desconectado.");
+      }
     }
   }
+
+  if (sensors.isConnected(0))
+  {
+    digitalWrite(LED_STATUS_SENSOR, HIGH);
+  }
+  else
+  {
+    digitalWrite(LED_STATUS_SENSOR, LOW);
+  }
+}
+
+// selecionarOpcao();
+
+if (interromper)
+{
+  if ((millis() - ultima_interrupcao) > tempoInterrupcao)
+  {
+    lcd.clear();
+    interromper = false;
+    ultima_interrupcao = millis();
+  }
+}
 }
 
 /**
@@ -306,7 +358,6 @@ void confirmarSelecao(void (*funcao)(), uint8_t botao)
 
   for (float i = timer / 2; i >= 0; i--) // timer de espera do clique de confirmacao
   {
-    Serial.print("Pressione novamente para continuar ");
     printOpcoesLCD("Pressione", "Novamente " + String(i / 10));
     if (!digitalRead(botao))
     {
@@ -928,7 +979,7 @@ void encherTanque(uint8_t resistencia, uint8_t tanque, uint8_t boia)
         printOpcoesLCD("", "de aquecimento...");
       }
       digitalWrite(relayResistencia, HIGH); // resistencia desligada
-      digitalWrite(tanque, HIGH);           // despejando agua no tanque
+      digitalWrite(tanque, LOW);            // despejando agua no tanque
     }
     Serial.println("Tanque Cheio");
     lcd.clear();
@@ -944,12 +995,12 @@ void encherTanque(uint8_t resistencia, uint8_t tanque, uint8_t boia)
     {
       printOpcoesLCD("Fechando", "vs_ts");
     }
-    digitalWrite(tanque, LOW); // fechando valvula
+    digitalWrite(tanque, HIGH); // fechando valvula
     delay(tempoPosicionamentoValvula);
     lcd.clear();
     if (resistencia)
     {
-      Serial.println("esistencia ligada");
+      Serial.println("Resistencia ligada");
       printOpcoesLCD("Resistencia", "ligada");
       aquecerResistencia(LOW); // ligar resistencia
     }
@@ -963,19 +1014,21 @@ void encherTanque(uint8_t resistencia, uint8_t tanque, uint8_t boia)
   Serial.println("===============================");
 }
 
-
-bool controlarTemperatura(float tempSolucao){
+bool controlarTemperatura(float tempSolucao)
+{
   bool temperaturaControlada = false;
-  while(!temperaturaControlada){
-    if(tempAgua() < tempSolucao - 3){
+  while (!temperaturaControlada)
+  {
+    if (tempAgua() < tempSolucao - 3)
+    {
       aquecerResistencia(LOW);
     }
-
-    if(tempAgua() > tempSolucao + 3){
+    else if (tempAgua() > tempSolucao + 3)
+    {
       aquecerResistencia(HIGH);
     }
-
-    if(tempAgua() == tempSolucao){
+    else if (tempAgua() == tempSolucao)
+    {
       temperaturaControlada = true;
     }
   }
@@ -998,6 +1051,7 @@ void esvaziarTanque(float tempSolucao) // implementar duas funcoes, do tanque de
     while (!controlarTemperatura(tempSolucao) && !digitalRead(boiaSolucao))
     {
       lcd.clear();
+      Serial.println("monitorando temperatura no display");
       printOpcoesLCD("Temperatura", String(tempAgua()) + " C");
       delay(2000);
     }
@@ -1084,7 +1138,7 @@ void adicionarSolucao(float solucao_ml, uint8_t relay)
  */
 void aquecerResistencia(uint8_t status)
 {
-  Serial.println("========== AQUECER RESISTENCIA ==========");
+  Serial.println("========== AQUECIMENTO DA AGUA ==========");
   if (!interromper)
   {
     lcd.clear();
@@ -1254,9 +1308,12 @@ void rotinaSanitizante()
     encherTanque(0, vs_tm, boiaMistura); // adicionar agua
     lcd.clear();
     printOpcoesLCD("Posicionando", "vs_ciclo");
+    delay(2000);
     digitalWrite(vs_ciclo, HIGH);  // puxando do tanque de aquecimento
     adicionarSolucao(volSanit, 3); // adicionar solucao
-
+    lcd.clear();
+    printOpcoesLCD("Despejando", "para fora");
+    delay(2000);
     esvaziarTanque(tempAgua()); // liberar apos atingir temperatura
   }
 }
@@ -1287,16 +1344,7 @@ float tempAgua()
   float temperatura;
 
   temperatura = sensors.getTempCByIndex(0);
-  if (temperatura > 5)
-  {
-    return temperatura;
-  }
-  else
-  {
-    printOpcoesLCD("", "Erro de sensor");
-    Serial.println("Erro ao detectar sensor");
-    return 666.0;
-  }
+  return temperatura;
 }
 
 /**
@@ -1338,6 +1386,8 @@ void printOpcoesLCD(String linha0, String linha1)
 
     lcd.setCursor(requiredOffset(linha1), 1);
     lcd.print(linha1);
+
+    Serial.println(linha0 + " " + linha1);
     ultimo_print_display = millis();
   }
 }
