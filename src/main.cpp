@@ -83,7 +83,7 @@ float tempAgua();
 #define vs_ts 36             // valvula de latao do tanque de aquecimento
 #define vs_tm 38             // valvula de latao do tanque de mistura
 #define ControleOrdenha 40   // acionamneto da succao da ordenha
-#define relayResistencia 42  // aquecer agua
+#define relayResistencia 46  // aquecer agua
 
 uint8_t vetorReles[9] = { relayAlc, relayAcid, relaySanit, vs_ciclo, vs_vasao, vs_ts, vs_tm, ControleOrdenha, relayResistencia };
 
@@ -93,8 +93,8 @@ uint8_t vetorReles[9] = { relayAlc, relayAcid, relaySanit, vs_ciclo, vs_vasao, v
 #define botaoRemover 3              // botao alterar volume das solucoes BRANCO
 #define botaoInterromperOperacao 2  // botao de interrupcao de ciclo
 
-#define boiaSolucao 35  // boia do tanque de aquecimento
-#define boiaMistura 33  // boia do tanque de mistura
+#define boiaSolucao 42  // boia do tanque de aquecimento
+#define boiaMistura 44  // boia do tanque de mistura
 
 #define tempSensor 10  // DS18B20
 #define LED_STATUS_SENSOR 17
@@ -210,15 +210,6 @@ void setup() {
   pegarCicloDaEEPROM();
 
   Serial.println("Iniciando display...");
-
-  Wire.beginTransmission(ende);         // Inicia a comunicação I2C
-  byte error = Wire.endTransmission();  // Verifica se o dispositivo respondeu
-  if (error == 0) {
-    Serial.println("Display encontrado com sucesso!");
-  } else {
-    Serial.println("Erro ao encontrar o display. Verifique as conexões.");
-  }
-
   lcd.init();       // Serve para iniciar a comunicação com o display já conectado
   lcd.backlight();  // Serve para ligar a luz do display
 
@@ -234,6 +225,8 @@ void loop() {
   // Serial.println("Coletando dados...");
   // Serial.println("esquerda: " + String(digitalRead(botaoSetaEsquerda)) + " ok: " + String(digitalRead(botaoOK)) + " direita: " + String(digitalRead(botaoSetaDireita)) + " remover: " + String(digitalRead(botaoRemover)) + " interromper: " + String(digitalRead(botaoInterromperOperacao)));
   // delay(500);
+
+  //Serial.println("boia 1: " + String(digitalRead(boiaSolucao)) + " boia 2: " + String(digitalRead(boiaMistura)));
 
   if (!statusSensorTemperatura)
     digitalWrite(LED_STATUS_SENSOR, HIGH);
@@ -375,10 +368,10 @@ void selecionarOpcao() {
   if (!digitalRead(botaoOK)) {
     switch (percorrerOpcoes) {
       case 0:
-        confirmarSelecao(cicloCIP, botaoOK);
+        if (statusSensorTemperatura == true) { confirmarSelecao(cicloCIP, botaoOK); }
         break;
       case 1:
-        confirmarSelecao(cicloPersonalizado, botaoOK);
+        if (statusSensorTemperatura == true) { confirmarSelecao(cicloPersonalizado, botaoOK); }
         break;
       case 2:
         confirmarSelecao(alterarTemperatura, botaoOK);
@@ -1329,6 +1322,13 @@ void printOpcoesLCD(String linha0, String linha1) {
     lcd.setCursor(15, 0);
     if (interromper == true) {
       lcd.print("*");
+    } else {
+      lcd.print("");
+    }
+
+    lcd.setCursor(15, 1);
+    if (statusSensorTemperatura == false) {
+      lcd.print("!");
     } else {
       lcd.print("");
     }
