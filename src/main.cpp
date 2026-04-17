@@ -32,6 +32,7 @@ OBJETIVOS RESTANTES
 // #include <String.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
+#include <avr/wdt.h>
 
 void estadoBombas(uint8_t, uint8_t, uint8_t);
 void aquecerResistencia(uint8_t);
@@ -149,7 +150,7 @@ uint8_t vetorRotinas[8];      // vetor para salvar um ciclo de limpeza personali
 uint16_t delaySetas = 300;    // delay das setas de selecao
 uint8_t percorrerOpcoes = 0;  // opcoes do vetor de selecao
 
-bool interromper = false;  // interromper ciclo
+volatile bool interromper = false;  // interromper ciclo
 bool statusSensorTemperatura = false;
 
 unsigned long ultima_coleta;
@@ -173,8 +174,6 @@ void definicaoInicialReles() {
   digitalWrite(vs_tm, HIGH);
   digitalWrite(vs_ts, HIGH);
 }
-
-void testeAcionamento();
 
 void setup() {
   Serial.begin(9600);
@@ -219,9 +218,11 @@ void setup() {
   Serial.println("Sistema iniciado.");
 
   statusSensorTemperatura = sensors.isConnected(0);
+  wdt_enable(WDTO_8S);
 }
 
 void loop() {
+  wdt_reset();
   // Serial.println("Coletando dados...");
   // Serial.println("esquerda: " + String(digitalRead(botaoSetaEsquerda)) + " ok: " + String(digitalRead(botaoOK)) + " direita: " + String(digitalRead(botaoSetaDireita)) + " remover: " + String(digitalRead(botaoRemover)) + " interromper: " + String(digitalRead(botaoInterromperOperacao)));
   // delay(500);
@@ -246,82 +247,6 @@ void loop() {
   //testeAcionamento();
 }
 
-void testeAcionamento() {
-  int pos = 0;
-  String textoTeste[] = { "pre-enx",
-                          "rot-enx",
-                          "rot_sol", "sol_acid", "sol_alc", "sol_sanit" };
-
-
-  //lcd.clear();
-  //printOpcoesLCD("teste", textoTeste[pos]);
-
-  while (1) {
-    if (!digitalRead(botaoSetaDireita) && pos < 5) {
-      pos++;
-      delay(250);
-      lcd.clear();
-      printOpcoesLCD("teste", textoTeste[pos]);
-    }
-    if (!digitalRead(botaoSetaEsquerda) && pos > 0) {
-      pos--;
-      delay(250);
-      lcd.clear();
-      printOpcoesLCD("teste", textoTeste[pos]);
-    }
-
-    switch (pos) {
-      case 1:
-        digitalWrite(vs_vasao, HIGH);  // abrindo a valvula de vasao para a saida
-        digitalWrite(vs_ts, HIGH);
-        digitalWrite(vs_ciclo, HIGH);  // puxando do tanque de solucao
-
-
-        digitalWrite(vs_vasao, HIGH);  // abrindo a valvula de vasao para a saida
-        digitalWrite(vs_ts, LOW);
-        digitalWrite(vs_ciclo, HIGH);  // puxando do tanque de solucao
-        break;
-      case 2:
-        digitalWrite(vs_vasao, HIGH);  // abrindo a valvula de vasao para a saida
-        digitalWrite(vs_ts, HIGH);
-        digitalWrite(vs_ciclo, HIGH);  // puxando do tanque de solucao
-
-
-        digitalWrite(vs_ciclo, LOW);   // puxando do tanque de mistura
-        digitalWrite(vs_vasao, HIGH);  // apontando para saida
-        digitalWrite(vs_tm, LOW);
-        break;
-      case 3:
-        digitalWrite(relayAcid, HIGH);
-        digitalWrite(vs_ciclo, HIGH);  // puxando do tanque de mistura
-        digitalWrite(vs_vasao, HIGH);  // apontando para saida
-        digitalWrite(vs_tm, HIGH);
-
-        digitalWrite(vs_vasao, LOW);  // apontando para o tanque de mistura
-        digitalWrite(vs_ts, LOW);
-        digitalWrite(vs_ciclo, LOW);  // puxando do tanque de mistura
-        break;
-      case 4:
-        digitalWrite(relayAlc, HIGH);
-
-        digitalWrite(relayAcid, LOW);
-        break;
-      case 5:
-        digitalWrite(relayAcid, HIGH);
-        digitalWrite(relaySanit, HIGH);
-
-        digitalWrite(relayAlc, LOW);
-        break;
-      case 6:
-        digitalWrite(relayAlc, HIGH);
-
-
-        digitalWrite(relaySanit, LOW);
-        break;
-    }
-  }
-}
-
 void testeSistema() {
   Serial.println("Teste do sistema iniciado...");
   Serial.println("Testando bombas peristalticas...");
@@ -337,6 +262,20 @@ void testeSistema() {
     delay(1000);
   }
 }
+
+void safeDelay(unsigned long ms) {
+  const unsigned int step = 500;  // intervalo seguro (ms)
+
+  while (ms > 0) {
+    unsigned long chunk = (ms > step) ? step : ms;
+
+    delay(chunk);
+    wdt_reset();  // alimenta o watchdog
+
+    ms -= chunk;
+  }
+}
+
 
 /**
  * @brief botoes de selecao de ciclos e do volume das solucoes
@@ -380,7 +319,7 @@ void selecionarOpcao() {
         confirmarSelecao(alterarVolumeSolucao, botaoOK);
         break;
     }
-    delay(2000);
+    safeDelay(2000);
   }
 }
 
@@ -391,7 +330,7 @@ void selecionarOpcao() {
  * @param botao a ser pressionado para confirmacao
  */
 void confirmarSelecao(void (*funcao)(), uint8_t botao) {
-  delay(500);
+  safeDelay(500);
   lcd.clear();
 
   for (float i = timer / 2; i >= 0; i--)  // timer de espera do clique de confirmacao
@@ -404,7 +343,7 @@ void confirmarSelecao(void (*funcao)(), uint8_t botao) {
     if (i == 0) {
       lcd.clear();
       printOpcoesLCD("Operacao", "cancelada");
-      delay(1500);
+      safeDelay(1500);
       break;
     }
     delay(100);
@@ -435,9 +374,7 @@ void converterProgramaParaEEPROM(float solucao, uint8_t posicao) {
  */
 float converterEEPROMParaPrograma(uint8_t posicao) {
   // puxando valores e convertendo da EEPROM para o programa
-  float aux = EEPROM.read(posicao);
-  aux /= 100;
-  return aux * 5;
+  return (float)EEPROM.read(posicao) * 5.0f / 100.0f;
 }
 
 /**
@@ -462,7 +399,7 @@ void salvarSolucaoNaEEPROM() {
   Serial.println("-SALVANDO NA EEPROM-");
   lcd.clear();
   printOpcoesLCD("Salvando", "solucao");
-  delay(2000);
+  delay(1000);
 
   Serial.print("Alc:");
   converterProgramaParaEEPROM(volAlcPersonalizado, EEPROM_ALC);
@@ -482,6 +419,7 @@ void salvarSolucaoNaEEPROM() {
  *
  */
 void alterarVolumeSolucao() {
+
   // salvando volume das solucoes em um vetor
   float volSolucao[] = { volAlcPersonalizado, volAcidPersonalizado, volSanitPersonalizado };
   lcd.clear();
@@ -490,7 +428,7 @@ void alterarVolumeSolucao() {
   for (uint8_t i = 0; i < sizeof(volSolucao) / sizeof(volSolucao[0]); i++)  // passando pelo array de solucoes
   {
     // timer para evitar o bounce do pushbutton
-    delay(2000);
+    safeDelay(1000);
     lcd.clear();
     while (digitalRead(botaoOK)) {
       // imprimindo a solucao atual que esta sendo alterada
@@ -526,7 +464,7 @@ void alterarVolumeSolucao() {
   Serial.println("Salvar na memoria ?");
   lcd.clear();
   printOpcoesLCD("Salvar", "na memoria?");
-  delay(2000);
+  safeDelay(2000);
   confirmarSelecao(salvarSolucaoNaEEPROM, botaoOK);
 }
 
@@ -541,10 +479,11 @@ void alterarTemperatura() {
   // passando pelos arrays
   for (uint8_t i = 0; i < sizeof(vetorTemp) / sizeof(uint8_t); i++) {
     // timer para evitar o bounce do pushbutton
-    delay(500);
+    safeDelay(500);
     lcd.clear();
 
     while (digitalRead(botaoOK)) {
+      wdt_reset();
       // imprimindo a solucao atual que esta sendo alterada
       Serial.print(stringTemp[i]);
       Serial.print(" : ");
@@ -577,7 +516,7 @@ void alterarTemperatura() {
   Serial.println("Salvar na memoria ?");
   lcd.clear();
   printOpcoesLCD("Salvar", "na memoria?");
-  delay(2000);
+  safeDelay(2000);
   confirmarSelecao(salvarTempNaEEPROM, botaoOK);
 }
 
@@ -589,7 +528,7 @@ void salvarTempNaEEPROM() {
   Serial.println("-SALVANDO NA EEPROM-");
   lcd.clear();
   printOpcoesLCD("Salvando", "temperatura");
-  delay(2000);
+  safeDelay(2000);
   EEPROM.update(EEPROM_TEMP_PRE_EXAGUE, tempPreEnxaguePersonalizado);
   EEPROM.update(EEPROM_TEMP_ALC, tempAlcPersonalizado);
   EEPROM.update(EEPROM_TEMP_ACID, tempAcidPersonalizado);
@@ -615,8 +554,8 @@ void pegarTempSolucaoEEPROM() {
  *
  */
 void interromperOperacao() {
-  Serial.println("cheguei na interrupcao");
-  Serial.println("INTERRROMPER");
+  //Serial.println("cheguei na interrupcao");
+  //Serial.println("INTERRROMPER");
   interromper = true;
 }
 
@@ -636,7 +575,7 @@ void interrupcao() {
 
     lcd.clear();
     printOpcoesLCD("Ciclo", "cancelado");
-    delay(2000);
+    safeDelay(2000);
   }
 }
 
@@ -648,7 +587,7 @@ void cicloCIP() {
   Serial.println("Inicializando ciclo CIP...");
   lcd.clear();
   printOpcoesLCD("Inicializando", "ciclo CIP...");
-  delay(2000);
+  safeDelay(2000);
   // rotina pre-enxague
   rotinaPreEnxague();
 
@@ -672,13 +611,14 @@ void cicloCIP() {
  *
  */
 void cicloPersonalizado() {
-  delay(2000);
+  safeDelay(2000);
   Serial.println();
 
   uint8_t countPercorrerCicloPersonalizado = 0;
 
   lcd.clear();
   while (digitalRead(botaoOK)) {
+    wdt_reset();
     Serial.println();
     Serial.print(percorrerCicloPersonalinado[countPercorrerCicloPersonalizado]);
     printOpcoesLCD("Personalizado", percorrerCicloPersonalinado[countPercorrerCicloPersonalizado]);
@@ -728,7 +668,7 @@ void criarCicloPersonalizado() {
   uint8_t percorrerRotinas = 0;           // percorrendo o vetor de rotinas salvas
   lcd.clear();
   printOpcoesLCD("Criar", "ciclo");
-  delay(2000);
+  safeDelay(2000);
   lcd.clear();
 
   // zerando todas as posicoes do vetor
@@ -737,9 +677,8 @@ void criarCicloPersonalizado() {
   }
 
   while (digitalRead(botaoInterromperOperacao)) {
+    wdt_reset();
     Serial.println(possiveisRotinas[percorrerPossiveisRotinas]);
-
-
     Serial.println(percorrerRotinas);
 
     // incrementando o vetor para visualizar as possiveis rotinas
@@ -819,7 +758,7 @@ void criarCicloPersonalizado() {
   lcd.clear();
   Serial.println("Salvar ciclo na memoria?");
   printOpcoesLCD("Salvar ciclo", "na memoria?");
-  delay(1500);
+  safeDelay(1500);
   confirmarSelecao(salvarCicloPersonalizadoNaEEPROM, botaoOK);
 }
 
@@ -868,34 +807,26 @@ String printarCicloPersonalizado() {
  *
  */
 void usarCicloPersonalizado() {
+  wdt_reset();
   Serial.println("usando ciclo salvo na memoria");
   lcd.clear();
   printOpcoesLCD("Usando ciclo", "salvo");
-  delay(2000);
+  safeDelay(2000);
   for (uint8_t i = 0; i < sizeof(vetorRotinas) / sizeof(vetorRotinas[0]); i++) {
     Serial.print(" ");
     Serial.print(EEPROM.read(i));
 
     if (EEPROM.read(i) == 1)  // pre-enxague
-    {
       rotinaPreEnxague();
-    }
-    if (EEPROM.read(i) == 2)  // lavagem intermitente
-    {
+    else if (EEPROM.read(i) == 2)  // lavagem intermitente
       rotinaEnxague();
-    }
-    if (EEPROM.read(i) == 3)  // rotina base
-    {
+    else if (EEPROM.read(i) == 3)  // rotina base
       rotinaSolucao(1, volAlc, tempAlc);
-    }
-    if (EEPROM.read(i) == 4)  // rotina acida
-    {
+    else if (EEPROM.read(i) == 4)  // rotina acida
       rotinaSolucao(2, volAcid, tempAcid);
-    }
-    if (EEPROM.read(i) == 5)  // rotina sanitizante
-    {
+    else if (EEPROM.read(i) == 5)  // rotina sanitizante
       rotinaSanitizante();
-    }
+
     delay(delaySetas);
   }
   interrupcao();
@@ -943,6 +874,7 @@ void salvarCicloPersonalizadoNaEEPROM() {
  * @param tanque valvula a ser alterada de posicao
  */
 void encherTanque(uint8_t resistencia, uint8_t tanque, uint8_t boia) {
+  wdt_reset();
   Serial.println("========== ENCHER TANQUE ==========");
   if (interromper == false) {
     Serial.println("Enchendo tanque...");
@@ -953,6 +885,7 @@ void encherTanque(uint8_t resistencia, uint8_t tanque, uint8_t boia) {
     */
     while (digitalRead(boia))  // contato boia aberto
     {
+      wdt_reset();
       printOpcoesLCD("Enchendo tanque", "");
       if (tanque == vs_tm) {
         printOpcoesLCD("", "de mistura...");
@@ -965,7 +898,7 @@ void encherTanque(uint8_t resistencia, uint8_t tanque, uint8_t boia) {
     Serial.println("Tanque Cheio");
     lcd.clear();
     printOpcoesLCD("Tanque cheio", "");
-    delay(2000);
+    safeDelay(2000);
     lcd.clear();
 
     if (tanque == vs_tm) {
@@ -974,7 +907,7 @@ void encherTanque(uint8_t resistencia, uint8_t tanque, uint8_t boia) {
       printOpcoesLCD("Fechando", "vs_ts");
     }
     digitalWrite(tanque, HIGH);  // fechando valvula
-    delay(tempoPosicionamentoValvula);
+    safeDelay(tempoPosicionamentoValvula);
     lcd.clear();
     if (resistencia) {
       Serial.println("Resistencia ligada");
@@ -1014,6 +947,7 @@ bool controlarTemperatura(float tempSolucao) {
  */
 void esvaziarTanque(float tempSolucao)  // implementar duas funcoes, do tanque de mistura e de solucao
 {
+  wdt_reset();
   Serial.println("========== ESVAZIAR TANQUE ==========");
   lcd.clear();
   printOpcoesLCD("Aquecendo", "resistencia");
@@ -1024,23 +958,22 @@ void esvaziarTanque(float tempSolucao)  // implementar duas funcoes, do tanque d
       lcd.clear();
       Serial.println("monitorando temperatura no display");
       printOpcoesLCD("Temperatura", String(tempAgua()) + " C");
-      delay(1000);
+      safeDelay(1000);
     }
     lcd.clear();
     printOpcoesLCD("Atingiu temperatura", "boia liberada");
     aquecerResistencia(HIGH);  // desligando resistencia
 
     Serial.println("ativando succao da ordenha");
-    delay(2000);
     lcd.clear();
     printOpcoesLCD("Ativando succao", "ordenhadeira");
     digitalWrite(ControleOrdenha, HIGH);  // ATIVAR SUCCAO DO SISTEMA
-    delay(2000);
+    safeDelay(2000);
 
     lcd.clear();
     printOpcoesLCD("Despejando agua", "...");
     Serial.println("Despejando agua...");
-    delay(tempoEsvaziarTanque);
+    safeDelay(tempoEsvaziarTanque);
 
     lcd.clear();
     Serial.println("Agua despejada");
@@ -1059,6 +992,7 @@ void esvaziarTanque(float tempSolucao)  // implementar duas funcoes, do tanque d
  * @param relay a ser ativado => 1 - Base || 2 - Acido || 3 - Sanitizante
  */
 void adicionarSolucao(float solucao_ml, uint8_t relay) {
+  wdt_reset();
   if (interromper == false) {
     Serial.println("========== ADICIONAR SOLUCAO ==========");
     lcd.clear();
@@ -1089,12 +1023,12 @@ void adicionarSolucao(float solucao_ml, uint8_t relay) {
         break;
     }
     Serial.println(calcSolucao(solucao_ml));
-    delay(calcSolucao(solucao_ml));  // calculo do tempo de despejo da solucao
+    safeDelay(calcSolucao(solucao_ml));  // calculo do tempo de despejo da solucao
     estadoBombas(HIGH, HIGH, HIGH);
     Serial.println("Solucao Adicionada!");
     lcd.clear();
     printOpcoesLCD("Solucao", "despejada");
-    delay(2000);
+    safeDelay(2000);
   }
   Serial.println("===============================");
 }
@@ -1105,6 +1039,7 @@ void adicionarSolucao(float solucao_ml, uint8_t relay) {
  * @param status LOW - LIGADO | HIGH - DESLIGADO
  */
 void aquecerResistencia(uint8_t status) {
+  wdt_reset();
   Serial.println("========== AQUECIMENTO DA AGUA ==========");
   if (!interromper) {
     lcd.clear();
@@ -1118,7 +1053,7 @@ void aquecerResistencia(uint8_t status) {
       digitalWrite(relayResistencia, status);
     }
   }
-  delay(2000);
+  safeDelay(2000);
   Serial.println("===============================");
 }
 
@@ -1127,20 +1062,20 @@ void aquecerResistencia(uint8_t status) {
  *
  */
 void rotinaPreEnxague() {
+  wdt_reset();
   if (interromper) return;
 
   Serial.println();
   Serial.println("ROTINA PRE-ENXAGUE");
   lcd.clear();
   printOpcoesLCD("Rotina", "PRE-ENXAGUE");
-  delay(2000);
+  safeDelay(2000);
   lcd.clear();
   printOpcoesLCD("Posicionando", "vs_vasao");
   digitalWrite(vs_vasao, HIGH);  // abrindo a valvula de vasao para a saida
-  delay(tempoPosicionamentoValvula);
+  safeDelay(tempoPosicionamentoValvula);
   encherTanque(1, vs_ts, boiaSolucao);  // enchendo tanque de aquecimento
-
-  esvaziarTanque(tempPreEnxague);  // succionando agua do tanque de aquecimento
+  esvaziarTanque(tempPreEnxague);       // succionando agua do tanque de aquecimento
 
   // constantemente lavando o tanque até que o operador interrompa o processo
   /*
@@ -1167,18 +1102,20 @@ void rotinaPreEnxague() {
  *
  */
 void rotinaEnxague() {
+  wdt_reset();
   if (interromper == false) {
     Serial.println();
     Serial.println("ROTINA ENXAGUE");
     lcd.clear();
     printOpcoesLCD("Rotina", "ENXAGUE");
-    delay(2000);
+    safeDelay(2000);
 
     digitalWrite(vs_ciclo, LOW);   // puxando do tanque de mistura
     digitalWrite(vs_vasao, HIGH);  // apontando para saida
     lcd.clear();
     printOpcoesLCD("Posicionando", "vs_vazao/ciclo");
-    delay(tempoPosicionamentoValvula);
+
+    safeDelay(tempoPosicionamentoValvula);
 
     encherTanque(0, vs_tm, boiaMistura);  // adicionar agua
     esvaziarTanque(tempAgua());           // liberar apos atingir temperatura
@@ -1193,6 +1130,8 @@ void rotinaEnxague() {
  * @param tempSolucao temperatura da rotina
  */
 void rotinaSolucao(uint8_t solucao, float volSolucao, uint8_t tempSolucao) {
+  wdt_reset();
+
   if (interromper == false) {
     lcd.clear();
 
@@ -1207,18 +1146,20 @@ void rotinaSolucao(uint8_t solucao, float volSolucao, uint8_t tempSolucao) {
         printOpcoesLCD("Solucao", "inexistente");
         break;
     }
-    delay(2000);
+    safeDelay(2000);
     digitalWrite(vs_vasao, LOW);  // apontando para o tanque de mistura
     lcd.clear();
     printOpcoesLCD("Posicionando", "vs_vazao");
-    delay(2000);
+    safeDelay(2000);
     adicionarSolucao(volSolucao, solucao);  // adicionar solucao
     encherTanque(1, vs_ts, boiaSolucao);    // adicionar agua
     esvaziarTanque(tempSolucao);            // liberar apos atingir temperatura
     lcd.clear();
     printOpcoesLCD("Posicionando", "vs_ciclo");
-    digitalWrite(vs_ciclo, LOW);          // puxando do tanque de mistura
-    delay(tempoPosicionamentoValvula);    // tempo para as valvulas se posicionarem
+    digitalWrite(vs_ciclo, LOW);  // puxando do tanque de mistura
+
+    safeDelay(tempoPosicionamentoValvula);
+
     digitalWrite(ControleOrdenha, HIGH);  // ativar succao
     Serial.println("ativando succao");
     Serial.println("circulando solucao");
@@ -1235,14 +1176,14 @@ void rotinaSolucao(uint8_t solucao, float volSolucao, uint8_t tempSolucao) {
         printOpcoesLCD("Solucao", "inexistente");
         break;
     }
-    delay(tempoCirculacaoSolucao);       // tempo de circulacao da solucao na ordenha
+    safeDelay(tempoCirculacaoSolucao);   // tempo de circulacao da solucao na ordenha
     digitalWrite(ControleOrdenha, LOW);  // desativar succao
     digitalWrite(vs_vasao, HIGH);        // apontando para fora
     lcd.clear();
     printOpcoesLCD("Despejando", "para fora");
-    delay(tempoPosicionamentoValvula);    // tempo para as valvulas se posicionarem
-    digitalWrite(ControleOrdenha, HIGH);  // desativar succao
-    delay(tempoEsvaziarTanque);
+    safeDelay(tempoPosicionamentoValvula);  // tempo para as valvulas se posicionarem
+    digitalWrite(ControleOrdenha, HIGH);    // desativar succao
+    safeDelay(tempoEsvaziarTanque);
     digitalWrite(ControleOrdenha, LOW);  // desativar succao
   }
 }
@@ -1257,16 +1198,16 @@ void rotinaSanitizante() {
     Serial.println("ROTINA SANITIZANTE");
     lcd.clear();
     printOpcoesLCD("Rotina", "SANITIZANTE");
-    delay(2000);
+    safeDelay(2000);
     encherTanque(0, vs_tm, boiaMistura);  // adicionar agua
     lcd.clear();
     printOpcoesLCD("Posicionando", "vs_ciclo");
-    delay(2000);
+    safeDelay(2000);
     digitalWrite(vs_ciclo, HIGH);   // puxando do tanque de aquecimento
     adicionarSolucao(volSanit, 3);  // adicionar solucao
     lcd.clear();
     printOpcoesLCD("Despejando", "para fora");
-    delay(2000);
+    safeDelay(2000);
     esvaziarTanque(tempAgua());  // liberar apos atingir temperatura
   }
 }
@@ -1318,30 +1259,30 @@ void estadoBombas(uint8_t estadoAlc, uint8_t estadoAcid, uint8_t estadoSanit) {
  * @param linha1 coluna 0, linha 1 do LCD
  */
 void printOpcoesLCD(String linha0, String linha1) {
-  if ((millis() - ultimo_print_display) > tempoDisplay) {
-    lcd.setCursor(15, 0);
-    if (interromper == true) {
-      lcd.print("*");
-    } else {
-      lcd.print("");
-    }
-
-    lcd.setCursor(15, 1);
-    if (statusSensorTemperatura == false) {
-      lcd.print("!");
-    } else {
-      lcd.print("");
-    }
-
-    lcd.setCursor(requiredOffset(linha0), 0);
-    lcd.print(linha0);
-
-    lcd.setCursor(requiredOffset(linha1), 1);
-    lcd.print(linha1);
-
-    // Serial.println(linha0 + " " + linha1);
-    ultimo_print_display = millis();
+  // if ((millis() - ultimo_print_display) > tempoDisplay) {
+  lcd.setCursor(15, 0);
+  if (interromper == true) {
+    lcd.print("*");
+  } else {
+    lcd.print("");
   }
+
+  lcd.setCursor(15, 1);
+  if (statusSensorTemperatura == false) {
+    lcd.print("!");
+  } else {
+    lcd.print("");
+  }
+
+  lcd.setCursor(requiredOffset(linha0), 0);
+  lcd.print(linha0);
+
+  lcd.setCursor(requiredOffset(linha1), 1);
+  lcd.print(linha1);
+
+  // Serial.println(linha0 + " " + linha1);
+  // ultimo_print_display = millis();
+  //}
 }
 
 /**
