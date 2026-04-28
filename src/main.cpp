@@ -97,7 +97,7 @@ uint8_t vetorReles[9] = { relayAlc, relayAcid, relaySanit, vs_ciclo, vs_vasao, v
 #define boiaSolucao 42  // boia do tanque de aquecimento
 #define boiaMistura 44  // boia do tanque de mistura
 
-#define tempSensor 10  // DS18B20
+#define tempSensor 14  // DS18B20
 #define LED_STATUS_SENSOR 17
 
 // POSICOES NA EEPROM, ONDE AS SOLUCOES SERAO SALVAS
@@ -151,7 +151,7 @@ uint16_t delaySetas = 300;    // delay das setas de selecao
 uint8_t percorrerOpcoes = 0;  // opcoes do vetor de selecao
 
 volatile bool interromper = false;  // interromper ciclo
-bool statusSensorTemperatura = false;
+bool statusSensorTemperatura = true;
 
 unsigned long ultima_coleta;
 unsigned long ultima_interrupcao;
@@ -217,7 +217,9 @@ void setup() {
   lcd.clear();  // Serve para limpar a tela do display
   Serial.println("Sistema iniciado.");
 
-  statusSensorTemperatura = sensors.isConnected(0);
+  if (tempAgua() == DEVICE_DISCONNECTED_C)
+    statusSensorTemperatura = false;
+
   wdt_enable(WDTO_8S);
 }
 
@@ -243,8 +245,6 @@ void loop() {
       ultima_interrupcao = millis();
     }
   }
-
-  //testeAcionamento();
 }
 
 void testeSistema() {
