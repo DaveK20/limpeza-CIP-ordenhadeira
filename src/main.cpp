@@ -415,7 +415,6 @@ void salvarSolucaoNaEEPROM() {
  *
  */
 void alterarVolumeSolucao() {
-
   // salvando volume das solucoes em um vetor
   float volSolucao[] = { volAlcPersonalizado, volAcidPersonalizado, volSanitPersonalizado };
   lcd.clear();
@@ -1129,7 +1128,9 @@ void rotinaEnxague() {
     printOpcoesLCD("Rotina", "ENXAGUE");
     safeDelay(2000);
 
-    digitalWrite(vs_ciclo, LOW);   // puxando do tanque de mistura
+    //digitalWrite(vs_ciclo, LOW);  // puxando do tanque de mistura
+    digitalWrite(vs_ciclo, HIGH);
+
     digitalWrite(vs_vasao, HIGH);  // apontando para saida
     lcd.clear();
     printOpcoesLCD("Posicionando", "vs_vazao/ciclo");
@@ -1175,7 +1176,8 @@ void rotinaSolucao(uint8_t solucao, float volSolucao, uint8_t tempSolucao) {
     esvaziarTanque(tempSolucao);            // liberar apos atingir temperatura
     lcd.clear();
     printOpcoesLCD("Posicionando", "vs_ciclo");
-    digitalWrite(vs_ciclo, LOW);  // puxando do tanque de mistura
+    //digitalWrite(vs_ciclo, LOW);  // puxando do tanque de mistura
+    digitalWrite(vs_ciclo, HIGH);  // puxando do tanque de mistura
 
     safeDelay(tempoPosicionamentoValvula);
 
@@ -1222,7 +1224,7 @@ void rotinaSanitizante() {
     lcd.clear();
     printOpcoesLCD("Posicionando", "vs_ciclo");
     safeDelay(2000);
-    digitalWrite(vs_ciclo, HIGH);   // puxando do tanque de aquecimento
+    digitalWrite(vs_ciclo, LOW);   // puxando do tanque de aquecimento
     adicionarSolucao(volSanit, 3);  // adicionar solucao
     lcd.clear();
     printOpcoesLCD("Despejando", "para fora");
