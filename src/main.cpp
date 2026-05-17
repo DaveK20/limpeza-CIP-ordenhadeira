@@ -57,6 +57,9 @@ void interrupcao();
 void alterarTemperatura();
 void pegarTempSolucaoEEPROM();
 void salvarTempNaEEPROM();
+void alterarTempoCirculacao();
+void salvarTempoCirculacaoNaEEPROM();
+void pegarTempoCirculacaoEEPROM();
 void printOpcoesLCD();
 String printarCicloPersonalizado();
 void pegarCicloDaEEPROM();
@@ -109,8 +112,11 @@ uint8_t vetorReles[9] = { relayAlc, relayAcid, relaySanit, vs_ciclo, vs_vasao, v
 #define EEPROM_TEMP_ALC 14
 #define EEPROM_TEMP_ACID 15
 
-#define tempoInterrupcao 3000              // delay minimo até ser possivel acionar a proxima interrupcao
-#define tempoCirculacaoSolucao 300000 / 5  // tempo que a solucao alcalina/acida vai circular no sistema
+// POSICAO NA EEPROM ONDE O TEMPO DE CIRCULACAO SERA SALVO (em minutos, 1 byte)
+#define EEPROM_TEMPO_CIRCULACAO 16
+
+#define tempoInterrupcao 3000             // delay minimo até ser possivel acionar a proxima interrupcao
+// tempoCirculacaoSolucao agora e variavel para permitir configuracao pelo usuario
 #define tempoEsvaziarTanque 150000         // tempo estimado para que o tanque fique vazio
 #define tempoColetaDados 3000              // coleta e amostragem dos dados de temperatura e status das bombas
 #define tempoPosicionamentoValvula 10000   // tempo de posicionamento das valvulas solenoide
@@ -152,6 +158,9 @@ uint8_t percorrerOpcoes = 0;  // opcoes do vetor de selecao
 volatile bool interromper = false;  // interromper ciclo
 bool statusSensorTemperatura = true;
 
+// Tempo de circulacao da solucao em ms (padrao: 5 minutos)
+unsigned long tempoCirculacaoSolucao = 300000UL;
+
 unsigned long ultima_coleta;
 unsigned long ultima_interrupcao;
 unsigned long ultimo_print_display;
@@ -159,7 +168,7 @@ unsigned long ultimo_print_display;
 // Tamanho do vetor de rotinas
 uint8_t tamVetorRotinas = sizeof(vetorRotinas) / sizeof(vetorRotinas[0]);
 
-const char *opcoes[] = { "CIP", "Personalizado", "Temperatura", "Solucao" };                         // painel de selecao selecionarOpcao()
+const char *opcoes[] = { "CIP", "Personalizado", "Temperatura", "Solucao", "Circulacao" };  // painel de selecao selecionarOpcao()
 const char *percorrerCicloPersonalinado[] = { "Usar Ciclo", "Novo Ciclo", "Verificar ciclo" };       // painel de selecao cicloPersonalizado()
 const char *possiveisRotinas[5] = { "Pre-enxague", "Enxague", "Alcalina", "Acida", "Sanitizante" };  // painel de selecao criarCicloPersonalizado()
 const char *solucao[] = { "Alcalino", "Acido", "Sanitizante" };                                      // vetor do nome das solucoes a serem alteradas
@@ -205,6 +214,7 @@ void setup() {
   pegarVolSolucaoEEPROM();
   pegarTempSolucaoEEPROM();
   pegarCicloDaEEPROM();
+  pegarTempoCirculacaoEEPROM();
 
   Serial.println("Iniciando display...");
   lcd.init();       // Serve para iniciar a comunicação com o display já conectado
@@ -288,7 +298,7 @@ void selecionarOpcao() {
     printOpcoesLCD("Alterar", opcoes[percorrerOpcoes]);
   }
 
-  if (!digitalRead(botaoSetaDireita) && percorrerOpcoes < 3) {
+  if (!digitalRead(botaoSetaDireita) && percorrerOpcoes < 4) {
     percorrerOpcoes++;
     delay(delaySetas);
     lcd.clear();
@@ -313,6 +323,9 @@ void selecionarOpcao() {
         break;
       case 3:
         confirmarSelecao(alterarVolumeSolucao, botaoOK);
+        break;
+      case 4:
+        confirmarSelecao(alterarTempoCirculacao, botaoOK);
         break;
     }
     safeDelay(2000);
@@ -531,6 +544,74 @@ void salvarTempNaEEPROM() {
 }
 
 /**
+ * @brief pega o tempo de circulacao salvo na EEPROM (em minutos)
+ *
+ */
+void pegarTempoCirculacaoEEPROM() {
+  uint8_t minutos = EEPROM.read(EEPROM_TEMPO_CIRCULACAO);
+  if (minutos == 255 || minutos == 0) {
+    minutos = 5;  // padrao: 5 minutos
+  }
+  tempoCirculacaoSolucao = (unsigned long)minutos * 60000UL;
+  Serial.print("Tempo circulacao: ");
+  Serial.print(minutos);
+  Serial.println(" min");
+}
+
+/**
+ * @brief salva o tempo de circulacao na EEPROM
+ *
+ */
+void salvarTempoCirculacaoNaEEPROM() {
+  uint8_t minutos = (uint8_t)(tempoCirculacaoSolucao / 60000UL);
+  Serial.println("-SALVANDO TEMPO CIRCULACAO NA EEPROM-");
+  lcd.clear();
+  printOpcoesLCD("Salvando", "circulacao");
+  EEPROM.update(EEPROM_TEMPO_CIRCULACAO, minutos);
+  safeDelay(1500);
+  lcd.clear();
+}
+
+/**
+ * @brief permite ao usuario alterar o tempo de circulacao da solucao em minutos
+ *
+ */
+void alterarTempoCirculacao() {
+  uint8_t minutos = (uint8_t)(tempoCirculacaoSolucao / 60000UL);
+  if (minutos == 0) minutos = 1;
+
+  safeDelay(500);
+  lcd.clear();
+
+  while (digitalRead(botaoOK)) {
+    wdt_reset();
+    printOpcoesLCD("Circulacao", String(minutos) + " min");
+    Serial.print("Circulacao: ");
+    Serial.print(minutos);
+    Serial.println(" min");
+
+    if (!digitalRead(botaoSetaDireita) && minutos < 60) {
+      minutos++;
+      delay(delaySetas);
+      lcd.clear();
+    }
+    if (!digitalRead(botaoSetaEsquerda) && minutos > 1) {
+      minutos--;
+      delay(delaySetas);
+      lcd.clear();
+    }
+  }
+
+  tempoCirculacaoSolucao = (unsigned long)minutos * 60000UL;
+
+  Serial.println("Salvar na memoria ?");
+  lcd.clear();
+  printOpcoesLCD("Salvar", "na memoria?");
+  safeDelay(2000);
+  confirmarSelecao(salvarTempoCirculacaoNaEEPROM, botaoOK);
+}
+
+/**
  * @brief define os valores das solucoes com valores salvos na EEPROM 10 (alcalina),11 (acida) e 12 (sanitizante)
  *
  */
@@ -704,36 +785,22 @@ void criarCicloPersonalizado() {
 
     // adicionando a rotina especifica selecionada a posicao do vetor
     if (!digitalRead(botaoOK)) {
-      switch (percorrerPossiveisRotinas) {
-        case 0:
-          vetorRotinas[percorrerRotinas] = 1;
-          break;
-        case 1:
-          vetorRotinas[percorrerRotinas] = 2;
-          break;
-        case 2:
-          vetorRotinas[percorrerRotinas] = 3;
-          break;
-        case 3:
-          vetorRotinas[percorrerRotinas] = 4;
-          break;
-        case 4:
-          vetorRotinas[percorrerRotinas] = 5;
-          break;
-      }
-
-      // incrementando o vetor ao celecionar uma rotina
       if (percorrerRotinas < tamVetorRotinas) {
+        switch (percorrerPossiveisRotinas) {
+          case 0: vetorRotinas[percorrerRotinas] = 1; break;
+          case 1: vetorRotinas[percorrerRotinas] = 2; break;
+          case 2: vetorRotinas[percorrerRotinas] = 3; break;
+          case 3: vetorRotinas[percorrerRotinas] = 4; break;
+          case 4: vetorRotinas[percorrerRotinas] = 5; break;
+        }
         percorrerRotinas++;
       } else {
-        //lcd.clear();
         printOpcoesLCD("VETOR CHEIO", "");
         Serial.println("vetor cheio");
         delay(delaySetas * 3);
         lcd.clear();
       }
       delay(delaySetas);
-      //lcd.clear();
     }
 
     // decrementando o vetor caso botaoRemover seja acionado

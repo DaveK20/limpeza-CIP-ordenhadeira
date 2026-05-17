@@ -1,9 +1,9 @@
 {
-  "C_Cpp_Runner.cCompilerPath": "C:/Users/davef/.platformio/packages/toolchain-atmelavr/bin/avr-gcc.exe",
-  "C_Cpp_Runner.cppCompilerPath": "C:/Users/davef/.platformio/packages/toolchain-atmelavr/bin/avr-g++.exe",
-  "C_Cpp_Runner.debuggerPath": "C:/Users/davef/.platformio/packages/toolchain-atmelavr/bin/avr-gdb.exe",
-  "C_Cpp_Runner.cStandard": "gnu11",
-  "C_Cpp_Runner.cppStandard": "gnu++11",
+  "C_Cpp_Runner.cCompilerPath": "gcc",
+  "C_Cpp_Runner.cppCompilerPath": "g++",
+  "C_Cpp_Runner.debuggerPath": "gdb",
+  "C_Cpp_Runner.cStandard": "",
+  "C_Cpp_Runner.cppStandard": "",
   "C_Cpp_Runner.msvcBatchPath": "C:/Program Files/Microsoft Visual Studio/VR_NR/Community/VC/Auxiliary/Build/vcvarsall.bat",
   "C_Cpp_Runner.useMsvc": false,
   "C_Cpp_Runner.warnings": [
@@ -37,21 +37,7 @@
   "C_Cpp_Runner.warningsAsError": false,
   "C_Cpp_Runner.compilerArgs": [],
   "C_Cpp_Runner.linkerArgs": [],
-  "C_Cpp_Runner.includePaths": [
-    "C:/Users/davef/OneDrive/Documentos/PlatformIO/Projects/limpeza-CIP-ordenhadeira/include",
-    "C:/Users/davef/OneDrive/Documentos/PlatformIO/Projects/limpeza-CIP-ordenhadeira/src",
-    "C:/Users/davef/.platformio/packages/framework-arduino-avr/libraries/EEPROM/src",
-    "C:/Users/davef/OneDrive/Documentos/PlatformIO/Projects/limpeza-CIP-ordenhadeira/.pio/libdeps/megaatmega2560/LiquidCrystal_I2C",
-    "C:/Users/davef/.platformio/packages/framework-arduino-avr/libraries/Wire/src",
-    "C:/Users/davef/OneDrive/Documentos/PlatformIO/Projects/limpeza-CIP-ordenhadeira/.pio/libdeps/megaatmega2560/DallasTemperature",
-    "C:/Users/davef/OneDrive/Documentos/PlatformIO/Projects/limpeza-CIP-ordenhadeira/.pio/libdeps/megaatmega2560/OneWire",
-    "C:/Users/davef/.platformio/packages/framework-arduino-avr/cores/arduino",
-    "C:/Users/davef/.platformio/packages/framework-arduino-avr/variants/mega",
-    "C:/Users/davef/.platformio/packages/framework-arduino-avr/libraries/HID/src",
-    "C:/Users/davef/.platformio/packages/framework-arduino-avr/libraries/SPI/src",
-    "C:/Users/davef/.platformio/packages/framework-arduino-avr/libraries/SoftwareSerial/src",
-    ""
-  ],
+  "C_Cpp_Runner.includePaths": [],
   "C_Cpp_Runner.includeSearch": [
     "*",
     "**/*"
