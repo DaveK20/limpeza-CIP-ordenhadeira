@@ -1,1028 +1,800 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
-    <title>CIP — Ordenhadeira</title>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700&display=swap"
-        rel="stylesheet" />
-    <style>
-        /* ═══════════════════════════════════════════════
-   DESIGN: Industrial / Utilitarian
-   Paleta: fundo escuro aço, verde operacional,
-           laranja alerta, vermelho crítico
-═══════════════════════════════════════════════ */
-        :root {
-            --bg: #0d1117;
-            --surface: #161b22;
-            --border: #30363d;
-            --green: #3fb950;
-            --green-dim: #1a3a22;
-            --orange: #e3a84a;
-            --orange-dim: #3a2a10;
-            --red: #f85149;
-            --red-dim: #3a1010;
-            --blue: #58a6ff;
-            --blue-dim: #0d2040;
-            --text: #e6edf3;
-            --text-muted: #8b949e;
-            --mono: 'Share Tech Mono', monospace;
-            --sans: 'Barlow', sans-serif;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        html,
-        body {
-            height: 100%;
-            background: var(--bg);
-            color: var(--text);
-            font-family: var(--sans);
-        }
-
-        /* ── Scrollbar ─────────────────────────────── */
-        ::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: var(--bg);
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: var(--border);
-            border-radius: 3px;
-        }
-
-        /* ── Layout principal ──────────────────────── */
-        .app {
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
-        }
-
-        header {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 14px 20px;
-            background: var(--surface);
-            border-bottom: 1px solid var(--border);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        header .logo {
-            font-family: var(--mono);
-            font-size: 1rem;
-            letter-spacing: 2px;
-            color: var(--green);
-        }
-
-        header .subtitle {
-            font-size: .75rem;
-            color: var(--text-muted);
-        }
-
-        header .dot-live {
-            margin-left: auto;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--green);
-            box-shadow: 0 0 6px var(--green);
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-
-            0%,
-            100% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: .3;
-            }
-        }
-
-        /* ── Abas ──────────────────────────────────── */
-        nav {
-            display: flex;
-            background: var(--surface);
-            border-bottom: 1px solid var(--border);
-        }
-
-        nav button {
-            flex: 1;
-            padding: 12px 8px;
-            background: none;
-            border: none;
-            border-bottom: 2px solid transparent;
-            color: var(--text-muted);
-            font-family: var(--sans);
-            font-size: .8rem;
-            font-weight: 600;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-            cursor: pointer;
-            transition: all .2s;
-        }
-
-        nav button.active {
-            color: var(--text);
-            border-bottom-color: var(--green);
-        }
-
-        /* ── Telas ─────────────────────────────────── */
-        .screen {
-            display: none;
-            padding: 20px;
-            gap: 16px;
-            flex-direction: column;
-        }
-
-        .screen.active {
-            display: flex;
-        }
-
-        /* ── Card base ─────────────────────────────── */
-        .card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 16px;
-        }
-
-        .card-title {
-            font-family: var(--mono);
-            font-size: .7rem;
-            letter-spacing: 2px;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            margin-bottom: 14px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid var(--border);
-        }
-
-        /* ── Indicadores de módulo ─────────────────── */
-        .modules-row {
-            display: flex;
-            gap: 12px;
-        }
-
-        .module-badge {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 8px;
-            padding: 14px 10px;
-            border-radius: 6px;
-            border: 1px solid var(--border);
-            transition: all .3s;
-        }
-
-        .module-badge.online {
-            background: var(--green-dim);
-            border-color: var(--green);
-        }
-
-        .module-badge.offline {
-            background: var(--red-dim);
-            border-color: var(--red);
-        }
-
-        .module-badge .dot {
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-        }
-
-        .module-badge.online .dot {
-            background: var(--green);
-            box-shadow: 0 0 8px var(--green);
-        }
-
-        .module-badge.offline .dot {
-            background: var(--red);
-            box-shadow: 0 0 8px var(--red);
-            animation: blink .8s infinite;
-        }
-
-        @keyframes blink {
-
-            0%,
-            100% {
-                opacity: 1
-            }
-
-            50% {
-                opacity: .2
-            }
-        }
-
-        .module-badge .mod-name {
-            font-family: var(--mono);
-            font-size: .85rem;
-        }
-
-        .module-badge .mod-status {
-            font-size: .65rem;
-            font-weight: 700;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-        }
-
-        .module-badge.online .mod-status {
-            color: var(--green);
-        }
-
-        .module-badge.offline .mod-status {
-            color: var(--red);
-        }
-
-        /* ── Temperatura ───────────────────────────── */
-        .temp-display {
-            display: flex;
-            align-items: baseline;
-            gap: 6px;
-        }
-
-        .temp-value {
-            font-family: var(--mono);
-            font-size: 2.8rem;
-            color: var(--orange);
-            line-height: 1;
-        }
-
-        .temp-unit {
-            font-size: 1.2rem;
-            color: var(--text-muted);
-        }
-
-        /* ── Etapa / Procedimento ──────────────────── */
-        .stage-block {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .stage-label {
-            font-size: .68rem;
-            letter-spacing: 1.5px;
-            color: var(--text-muted);
-            text-transform: uppercase;
-        }
-
-        .stage-value {
-            font-family: var(--mono);
-            font-size: 1rem;
-            color: var(--blue);
-        }
-
-        .proc-value {
-            font-size: .9rem;
-            color: var(--orange);
-        }
-
-        /* Barra de progresso da etapa */
-        .progress-wrap {
-            height: 4px;
-            background: var(--border);
-            border-radius: 2px;
-            overflow: hidden;
-            margin-top: 4px;
-        }
-
-        .progress-bar {
-            height: 100%;
-            background: var(--blue);
-            border-radius: 2px;
-            transition: width .5s ease;
-        }
-
-        /* ── Botão INICIAR CIP ─────────────────────── */
-        .btn-cip-wrap {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .btn-cip {
-            position: relative;
-            width: 140px;
-            height: 140px;
-            border-radius: 50%;
-            border: 3px solid var(--border);
-            background: var(--surface);
-            cursor: pointer;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            transition: border-color .2s;
-            -webkit-tap-highlight-color: transparent;
-            user-select: none;
-        }
-
-        .btn-cip svg {
-            width: 36px;
-            height: 36px;
-        }
-
-        .btn-cip .btn-label {
-            font-family: var(--mono);
-            font-size: .7rem;
-            letter-spacing: 2px;
-            color: var(--text-muted);
-        }
-
-        /* anel de progresso do hold */
-        .btn-cip .ring {
-            position: absolute;
-            inset: -4px;
-            border-radius: 50%;
-            border: 4px solid transparent;
-            border-top-color: var(--green);
-            transform: rotate(-90deg);
-            transition: none;
-            opacity: 0;
-        }
-
-        .btn-cip.holding .ring {
-            opacity: 1;
-        }
-
-        .btn-cip.idle {
-            border-color: var(--green);
-        }
-
-        .btn-cip.idle svg path {
-            stroke: var(--green);
-        }
-
-        .btn-cip.idle .btn-label {
-            color: var(--green);
-        }
-
-        .btn-cip.running {
-            border-color: var(--red);
-            animation: rotate-ring 2s linear infinite;
-        }
-
-        .btn-cip.running svg path {
-            stroke: var(--red);
-        }
-
-        .btn-cip.running .btn-label {
-            color: var(--red);
-        }
-
-        .btn-cip.blocked {
-            border-color: var(--border);
-            opacity: .5;
-            cursor: not-allowed;
-        }
-
-        @keyframes rotate-ring {
-            from {
-                box-shadow: 0 0 0 2px var(--red-dim);
-            }
-
-            to {
-                box-shadow: 0 0 12px 2px var(--red);
-            }
-        }
-
-        .hold-hint {
-            font-size: .7rem;
-            color: var(--text-muted);
-            font-family: var(--mono);
-            letter-spacing: 1px;
-            text-align: center;
-        }
-
-        /* ── Botão secundário (parar) ──────────────── */
-        .btn-stop {
-            display: none;
-            width: 100%;
-            padding: 12px;
-            background: var(--red-dim);
-            border: 1px solid var(--red);
-            color: var(--red);
-            border-radius: 6px;
-            font-family: var(--mono);
-            font-size: .8rem;
-            letter-spacing: 2px;
-            cursor: pointer;
-            transition: background .2s;
-        }
-
-        .btn-stop:active {
-            background: #5a1a1a;
-        }
-
-        .btn-stop.visible {
-            display: block;
-        }
-
-        /* ── Erro ──────────────────────────────────── */
-        .error-banner {
-            display: none;
-            padding: 10px 14px;
-            background: var(--red-dim);
-            border: 1px solid var(--red);
-            border-radius: 6px;
-            font-size: .8rem;
-            color: var(--red);
-            font-family: var(--mono);
-        }
-
-        .error-banner.visible {
-            display: block;
-        }
-
-        /* ── Configurações ─────────────────────────── */
-        .cfg-grid {
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
-        }
-
-        .cfg-group-title {
-            font-family: var(--mono);
-            font-size: .65rem;
-            letter-spacing: 2px;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            margin-bottom: 2px;
-        }
-
-        .cfg-row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .cfg-row label {
-            flex: 1;
-            font-size: .82rem;
-            color: var(--text-muted);
-        }
-
-        .cfg-row .cfg-val {
-            width: 70px;
-            font-family: var(--mono);
-            font-size: .9rem;
-            text-align: right;
-            color: var(--text);
-            background: none;
-            border: none;
-        }
-
-        .cfg-row input[type=range] {
-            flex: 1.5;
-            -webkit-appearance: none;
-            height: 4px;
-            border-radius: 2px;
-            background: var(--border);
-            outline: none;
-        }
-
-        .cfg-row input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: var(--blue);
-            box-shadow: 0 0 6px var(--blue);
-            cursor: pointer;
-        }
-
-        .cfg-row .cfg-unit {
-            font-size: .72rem;
-            color: var(--text-muted);
-            width: 24px;
-        }
-
-        .cfg-section {
-            border-top: 1px solid var(--border);
-            padding-top: 14px;
-        }
-
-        .btn-save {
-            width: 100%;
-            padding: 13px;
-            background: var(--green-dim);
-            border: 1px solid var(--green);
-            color: var(--green);
-            border-radius: 6px;
-            font-family: var(--mono);
-            font-size: .8rem;
-            letter-spacing: 2px;
-            cursor: pointer;
-            transition: background .2s;
-        }
-
-        .btn-save:active {
-            background: #1a5a22;
-        }
-
-        .save-ok {
-            display: none;
-            text-align: center;
-            font-size: .75rem;
-            color: var(--green);
-            margin-top: 4px;
-            font-family: var(--mono);
-        }
-
-        .save-ok.visible {
-            display: block;
-        }
-
-        /* ── Responsive ────────────────────────────── */
-        @media (min-width: 480px) {
-            .screen {
-                padding: 24px;
-            }
-        }
-    </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+<title>CIP — Ordenhadeira</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#0d1117;--surface:#161b22;--border:#30363d;
+  --green:#3fb950;--green-dim:#1a3a22;
+  --orange:#e3a84a;--orange-dim:#3a2a10;
+  --red:#f85149;--red-dim:#3a1010;
+  --blue:#58a6ff;--blue-dim:#0d2040;
+  --purple:#bc8cff;--purple-dim:#2a1545;
+  --text:#e6edf3;--muted:#8b949e;
+  --mono:'Share Tech Mono',monospace;
+  --sans:'Barlow',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans)}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.app{display:flex;flex-direction:column;min-height:100vh}
+
+/* ── Header ── */
+header{display:flex;align-items:center;gap:10px;padding:12px 18px;
+  background:var(--surface);border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:100}
+.logo{font-family:var(--mono);font-size:.95rem;letter-spacing:2px;color:var(--green)}
+.subtitle{font-size:.7rem;color:var(--muted)}
+.dot-live{margin-left:auto;width:8px;height:8px;border-radius:50%;
+  background:var(--green);box-shadow:0 0 6px var(--green);
+  animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ── Nav ── */
+nav{display:flex;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto}
+nav button{flex:1;min-width:80px;padding:11px 6px;background:none;border:none;
+  border-bottom:2px solid transparent;color:var(--muted);font-family:var(--sans);
+  font-size:.72rem;font-weight:600;letter-spacing:.8px;text-transform:uppercase;
+  cursor:pointer;transition:all .2s;white-space:nowrap}
+nav button.active{color:var(--text);border-bottom-color:var(--green)}
+
+/* ── Screens ── */
+.screen{display:none;padding:18px;gap:14px;flex-direction:column}
+.screen.active{display:flex}
+
+/* ── Card ── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px}
+.card-title{font-family:var(--mono);font-size:.68rem;letter-spacing:2px;
+  color:var(--muted);text-transform:uppercase;margin-bottom:12px;
+  padding-bottom:7px;border-bottom:1px solid var(--border)}
+
+/* ── Módulos ── */
+.modules-row{display:flex;gap:10px}
+.mod-badge{flex:1;display:flex;flex-direction:column;align-items:center;
+  gap:7px;padding:12px 8px;border-radius:6px;border:1px solid var(--border);transition:all .3s}
+.mod-badge.online{background:var(--green-dim);border-color:var(--green)}
+.mod-badge.offline{background:var(--red-dim);border-color:var(--red)}
+.mod-badge .dot{width:12px;height:12px;border-radius:50%}
+.mod-badge.online .dot{background:var(--green);box-shadow:0 0 7px var(--green)}
+.mod-badge.offline .dot{background:var(--red);box-shadow:0 0 7px var(--red);animation:blink .8s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.mod-name{font-family:var(--mono);font-size:.8rem}
+.mod-st{font-size:.62rem;font-weight:700;letter-spacing:1px;text-transform:uppercase}
+.mod-badge.online .mod-st{color:var(--green)}
+.mod-badge.offline .mod-st{color:var(--red)}
+
+/* ── Temperatura ── */
+.temp-big{display:flex;align-items:baseline;gap:5px}
+.temp-val{font-family:var(--mono);font-size:2.6rem;color:var(--orange);line-height:1}
+.temp-unit{font-size:1.1rem;color:var(--muted)}
+
+/* ── Labels ── */
+.lbl{font-size:.66rem;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:4px}
+.val-blue{font-family:var(--mono);font-size:.95rem;color:var(--blue)}
+.val-orange{font-size:.88rem;color:var(--orange)}
+
+/* ── Progress ── */
+.prog-wrap{height:3px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:5px}
+.prog-bar{height:100%;background:var(--blue);border-radius:2px;transition:width .5s}
+
+/* ── Botão CIP (hold) ── */
+.btn-cip-wrap{display:flex;flex-direction:column;align-items:center;gap:12px}
+.btn-cip{position:relative;width:130px;height:130px;border-radius:50%;
+  border:3px solid var(--border);background:var(--surface);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:5px;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;
+  transition:border-color .2s}
+.btn-cip svg{width:32px;height:32px}
+.btn-cip .btn-lbl{font-family:var(--mono);font-size:.65rem;letter-spacing:2px;color:var(--muted)}
+.ring{position:absolute;inset:-4px;border-radius:50%;border:4px solid transparent;
+  border-top-color:var(--green);transform:rotate(-90deg);opacity:0;transition:none}
+.btn-cip.holding .ring{opacity:1}
+.btn-cip.idle{border-color:var(--green)}
+.btn-cip.idle svg path{stroke:var(--green)}
+.btn-cip.idle .btn-lbl{color:var(--green)}
+.btn-cip.running{border-color:var(--orange)}
+.btn-cip.running svg path{stroke:var(--orange)}
+.btn-cip.running .btn-lbl{color:var(--orange)}
+.btn-cip.blocked{opacity:.45;cursor:not-allowed}
+.hold-hint{font-size:.68rem;color:var(--muted);font-family:var(--mono);letter-spacing:1px;text-align:center}
+
+/* ── Botão CANCELAR (hold 2s) ── */
+.btn-cancel-wrap{display:none}
+.btn-cancel-wrap.visible{display:flex;flex-direction:column;align-items:center;gap:8px;width:100%}
+.btn-cancel{width:100%;padding:13px;background:var(--red-dim);border:1px solid var(--red);
+  color:var(--red);border-radius:6px;font-family:var(--mono);font-size:.78rem;letter-spacing:2px;
+  cursor:pointer;position:relative;overflow:hidden;user-select:none;-webkit-tap-highlight-color:transparent}
+.cancel-fill{position:absolute;left:0;top:0;height:100%;width:0%;
+  background:rgba(248,81,73,.18);transition:none;pointer-events:none}
+.cancel-hint{font-size:.65rem;color:var(--red);font-family:var(--mono);opacity:.7}
+
+/* ── Erro ── */
+.err-banner{display:none;padding:9px 12px;background:var(--red-dim);
+  border:1px solid var(--red);border-radius:6px;font-size:.78rem;
+  color:var(--red);font-family:var(--mono)}
+.err-banner.visible{display:block}
+
+/* ── Ciclo personalizado ── */
+.rotinas-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.rotina-btn{display:flex;align-items:center;gap:10px;padding:11px 12px;
+  border-radius:6px;border:1.5px solid var(--border);background:var(--surface);
+  cursor:pointer;transition:all .15s;-webkit-tap-highlight-color:transparent}
+.rotina-btn:active{transform:scale(.97)}
+.rotina-btn .rnum{width:28px;height:28px;border-radius:6px;display:flex;
+  align-items:center;justify-content:center;font-family:var(--mono);
+  font-size:.85rem;font-weight:700;flex-shrink:0}
+.rotina-btn .rlbl{font-size:.82rem;color:var(--text);font-weight:500}
+
+/* Cores dos botões de rotina */
+.r1{border-color:#4a6a8a;background:#0d1f2d}.r1 .rnum{background:#1a3a55;color:#7ab8e8}
+.r2{border-color:#3a6a4a;background:#0d1f15}.r2 .rnum{background:#1a4030;color:#7ad888}
+.r3{border-color:#5a4a8a;background:#1a0d2d}.r3 .rnum{background:#2a1a55;color:#bc8cff}
+.r4{border-color:#8a5a20;background:#2a1a05}.r4 .rnum{background:#4a2a10;color:var(--orange)}
+.r5{border-color:#4a8a8a;background:#0d2020}.r5 .rnum{background:#1a4040;color:#7ae8e8}
+
+/* Fila criada */
+.fila-label{font-size:.68rem;letter-spacing:1.5px;color:var(--muted);
+  text-transform:uppercase;margin-bottom:8px}
+.fila-container{min-height:48px;padding:8px;background:var(--bg);
+  border:1px solid var(--border);border-radius:6px;
+  display:flex;flex-wrap:wrap;gap:6px;align-content:flex-start}
+.fila-item{display:flex;align-items:center;gap:5px;padding:5px 9px;
+  border-radius:4px;font-family:var(--mono);font-size:.75rem;font-weight:600;
+  cursor:pointer;transition:opacity .15s}
+.fila-item:hover{opacity:.7}
+.fila-item .fi-x{font-size:.6rem;color:rgba(255,255,255,.5)}
+.fila-vazia{font-size:.75rem;color:var(--muted);font-family:var(--mono);
+  padding:8px 0;width:100%;text-align:center}
+
+/* Cores dos itens na fila (mesmas dos botões) */
+.fi1{background:#1a3a55;color:#7ab8e8;border:1px solid #4a6a8a}
+.fi2{background:#1a4030;color:#7ad888;border:1px solid #3a6a4a}
+.fi3{background:#2a1a55;color:#bc8cff;border:1px solid #5a4a8a}
+.fi4{background:#4a2a10;color:var(--orange);border:1px solid #8a5a20}
+.fi5{background:#1a4040;color:#7ae8e8;border:1px solid #4a8a8a}
+
+.fila-count{font-size:.7rem;color:var(--muted);font-family:var(--mono);
+  text-align:right;margin-top:4px}
+
+.btn-row{display:flex;gap:8px;margin-top:4px}
+.btn-sm{flex:1;padding:11px;border-radius:6px;font-family:var(--mono);
+  font-size:.75rem;letter-spacing:1px;cursor:pointer;border:1px solid;
+  transition:background .2s}
+.btn-iniciar-custom{background:var(--green-dim);border-color:var(--green);color:var(--green)}
+.btn-iniciar-custom:disabled{opacity:.4;cursor:not-allowed}
+.btn-limpar{background:var(--red-dim);border-color:var(--red);color:var(--red)}
+.btn-salvar-fila{background:var(--blue-dim);border-color:var(--blue);color:var(--blue)}
+
+/* ── Configurações ── */
+.cfg-section-title{font-family:var(--mono);font-size:.63rem;letter-spacing:2px;
+  color:var(--muted);text-transform:uppercase;margin-bottom:4px}
+.cfg-divider{border-top:1px solid var(--border);padding-top:12px;margin-top:4px}
+.cfg-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.cfg-row label{flex:1;font-size:.8rem;color:var(--muted)}
+.cfg-row input[type=range]{flex:1.4;-webkit-appearance:none;height:3px;
+  border-radius:2px;background:var(--border);outline:none}
+.cfg-row input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;
+  width:15px;height:15px;border-radius:50%;background:var(--blue);
+  box-shadow:0 0 5px var(--blue);cursor:pointer}
+.cfg-val{width:42px;font-family:var(--mono);font-size:.88rem;
+  text-align:right;color:var(--text);background:none;border:none}
+.cfg-unit{font-size:.68rem;color:var(--muted);width:22px}
+.btn-save{width:100%;padding:12px;background:var(--green-dim);border:1px solid var(--green);
+  color:var(--green);border-radius:6px;font-family:var(--mono);font-size:.78rem;
+  letter-spacing:2px;cursor:pointer;transition:background .2s;margin-top:4px}
+.save-ok{display:none;text-align:center;font-size:.72rem;color:var(--green);
+  margin-top:6px;font-family:var(--mono)}
+.save-ok.visible{display:block}
+</style>
 </head>
-
 <body>
-    <div class="app">
+<div class="app">
 
-        <!-- CABEÇALHO -->
-        <header>
-            <div>
-                <div class="logo">◈ CIP / ORDENHA</div>
-                <div class="subtitle">IFF Bom Jesus do Itabapoana</div>
-            </div>
-            <div class="dot-live" id="dotLive"></div>
-        </header>
+<header>
+  <div>
+    <div class="logo">◈ CIP / ORDENHA</div>
+    <div class="subtitle">IFF Bom Jesus do Itabapoana</div>
+  </div>
+  <div class="dot-live" id="dotLive"></div>
+</header>
 
-        <!-- ABAS -->
-        <nav>
-            <button class="active" onclick="showTab('home')">Início</button>
-            <button onclick="showTab('ciclo')">Ciclo CIP</button>
-            <button onclick="showTab('config')">Configurações</button>
-        </nav>
+<nav>
+  <button class="active" onclick="tab('home',this)">Início</button>
+  <button onclick="tab('ciclo',this)">Ciclo CIP</button>
+  <button onclick="tab('custom',this)">Personalizado</button>
+  <button onclick="tab('config',this)">Config</button>
+</nav>
 
-        <!-- ══════════════════════════════════════════
-       TELA 1 — INÍCIO
-  ══════════════════════════════════════════ -->
-        <div class="screen active" id="screen-home">
+<!-- ══════════ TELA: INÍCIO ══════════ -->
+<div class="screen active" id="screen-home">
 
-            <!-- Módulos -->
-            <div class="card">
-                <div class="card-title">Conexão dos Módulos</div>
-                <div class="modules-row">
-                    <div class="module-badge offline" id="badge-ORDENHA">
-                        <div class="dot"></div>
-                        <div class="mod-name">ORDENHA</div>
-                        <div class="mod-status">offline</div>
-                    </div>
-                    <div class="module-badge offline" id="badge-MOTOR">
-                        <div class="dot"></div>
-                        <div class="mod-name">MOTOR</div>
-                        <div class="mod-status">offline</div>
-                    </div>
-                </div>
-            </div>
+  <div class="card">
+    <div class="card-title">Conexão dos Módulos</div>
+    <div class="modules-row">
+      <div class="mod-badge offline" id="hbadge-ORDENHA">
+        <div class="dot"></div><div class="mod-name">ORDENHA</div>
+        <div class="mod-st">offline</div>
+      </div>
+      <div class="mod-badge offline" id="hbadge-MOTOR">
+        <div class="dot"></div><div class="mod-name">MOTOR</div>
+        <div class="mod-st">offline</div>
+      </div>
+    </div>
+  </div>
 
-            <!-- Temperatura -->
-            <div class="card">
-                <div class="card-title">Temperatura do Tanque</div>
-                <div class="temp-display">
-                    <div class="temp-value" id="home-temp">--.-</div>
-                    <div class="temp-unit">°C</div>
-                </div>
-            </div>
+  <div class="card">
+    <div class="card-title">Temperatura do Tanque</div>
+    <div class="temp-big">
+      <div class="temp-val" id="h-temp">--.-</div>
+      <div class="temp-unit">°C</div>
+    </div>
+  </div>
 
-            <!-- Estado do Ciclo (resumo) -->
-            <div class="card">
-                <div class="card-title">Estado do Sistema</div>
-                <div class="stage-block">
-                    <div>
-                        <div class="stage-label">Status</div>
-                        <div class="stage-value" id="home-status">Aguardando</div>
-                    </div>
-                    <div>
-                        <div class="stage-label">Procedimento atual</div>
-                        <div class="proc-value" id="home-proc">Sistema em repouso</div>
-                    </div>
-                </div>
-            </div>
+  <div class="card">
+    <div class="card-title">Estado do Sistema</div>
+    <div class="lbl">Etapa</div>
+    <div class="val-blue" id="h-etapa">Aguardando</div>
+    <div style="margin-top:10px" class="lbl">Procedimento</div>
+    <div class="val-orange" id="h-proc">Sistema em repouso</div>
+  </div>
 
+</div>
+
+<!-- ══════════ TELA: CICLO CIP ══════════ -->
+<div class="screen" id="screen-ciclo">
+
+  <div class="card">
+    <div class="card-title">Iniciar Ciclo CIP</div>
+    <div class="btn-cip-wrap">
+
+      <button class="btn-cip blocked" id="btnCip"
+              onpointerdown="holdCipStart()" onpointerup="holdCipEnd()"
+              onpointerleave="holdCipEnd()">
+        <div class="ring" id="cipRing"></div>
+        <svg viewBox="0 0 24 24" fill="none">
+          <path id="cipIco" d="M5 3l14 9-14 9V3z"
+                stroke="#8b949e" stroke-width="1.8" stroke-linejoin="round" fill="none"/>
+        </svg>
+        <div class="btn-lbl" id="cipLbl">AGUARDANDO</div>
+      </button>
+
+      <div class="hold-hint" id="cipHint">Aguardando conexão dos módulos</div>
+
+      <!-- Cancelar CIP -->
+      <div class="btn-cancel-wrap" id="cipCancelWrap">
+        <button class="btn-cancel" id="btnCancelCip"
+                onpointerdown="holdCancelStart('cip')" onpointerup="holdCancelEnd('cip')"
+                onpointerleave="holdCancelEnd('cip')">
+          <div class="cancel-fill" id="cancelFillCip"></div>
+          ■ SEGURAR PARA CANCELAR
+        </button>
+        <div class="cancel-hint">Segure 2s para parar o ciclo imediatamente</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Módulos</div>
+    <div class="modules-row">
+      <div class="mod-badge offline" id="cbadge-ORDENHA">
+        <div class="dot"></div><div class="mod-name" style="font-size:.75rem">ORDENHA</div>
+        <div class="mod-st">offline</div>
+      </div>
+      <div class="mod-badge offline" id="cbadge-MOTOR">
+        <div class="dot"></div><div class="mod-name" style="font-size:.75rem">MOTOR</div>
+        <div class="mod-st">offline</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Monitoramento em Tempo Real</div>
+    <div class="lbl">Etapa do Ciclo</div>
+    <div class="val-blue" id="c-etapa">—</div>
+    <div class="prog-wrap"><div class="prog-bar" id="cProg" style="width:0%"></div></div>
+    <div style="margin-top:12px" class="lbl">Procedimento</div>
+    <div class="val-orange" id="c-proc">—</div>
+    <div style="margin-top:12px" class="lbl">Temperatura</div>
+    <div class="temp-big">
+      <div class="temp-val" style="font-size:1.7rem" id="c-temp">--.-</div>
+      <div class="temp-unit">°C</div>
+    </div>
+  </div>
+
+  <div class="err-banner" id="cipErr"></div>
+</div>
+
+<!-- ══════════ TELA: CICLO PERSONALIZADO ══════════ -->
+<div class="screen" id="screen-custom">
+
+  <div class="card">
+    <div class="card-title">Selecionar Etapas</div>
+    <div class="rotinas-grid">
+      <button class="rotina-btn r1" onclick="addEtapa(1,'Pré-enxágue','fi1')">
+        <div class="rnum">1</div><div class="rlbl">Pré-enxágue</div>
+      </button>
+      <button class="rotina-btn r2" onclick="addEtapa(2,'Enxágue','fi2')">
+        <div class="rnum">2</div><div class="rlbl">Enxágue</div>
+      </button>
+      <button class="rotina-btn r3" onclick="addEtapa(3,'Alcalina','fi3')">
+        <div class="rnum">3</div><div class="rlbl">Alcalina</div>
+      </button>
+      <button class="rotina-btn r4" onclick="addEtapa(4,'Ácida','fi4')">
+        <div class="rnum">4</div><div class="rlbl">Ácida</div>
+      </button>
+      <button class="rotina-btn r5" onclick="addEtapa(5,'Sanitizante','fi5')" style="grid-column:span 2">
+        <div class="rnum">5</div><div class="rlbl">Sanitizante</div>
+      </button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Fila Criada</div>
+    <div class="fila-label">Toque em uma etapa para removê-la</div>
+    <div class="fila-container" id="filaContainer">
+      <div class="fila-vazia" id="filaVazia">Nenhuma etapa adicionada</div>
+    </div>
+    <div class="fila-count" id="filaCount">0 / 10</div>
+
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn-sm btn-limpar" onclick="limparFila()">✕ LIMPAR</button>
+      <button class="btn-sm btn-salvar-fila" onclick="salvarFila()">💾 SALVAR</button>
+    </div>
+    <div class="btn-row">
+      <button class="btn-sm btn-iniciar-custom" id="btnIniciarCustom"
+              disabled onpointerdown="holdCustomStart()" onpointerup="holdCustomEnd()"
+              onpointerleave="holdCustomEnd()">
+        <div style="position:relative;display:inline-block;width:100%">
+          <div class="cancel-fill" id="customFill" style="border-radius:4px"></div>
+          ▶ SEGURAR 2S PARA INICIAR
         </div>
+      </button>
+    </div>
 
-        <!-- ══════════════════════════════════════════
-       TELA 2 — CICLO CIP
-  ══════════════════════════════════════════ -->
-        <div class="screen" id="screen-ciclo">
+    <!-- Cancelar custom -->
+    <div class="btn-cancel-wrap" id="customCancelWrap" style="margin-top:8px">
+      <button class="btn-cancel" id="btnCancelCustom"
+              onpointerdown="holdCancelStart('custom')" onpointerup="holdCancelEnd('custom')"
+              onpointerleave="holdCancelEnd('custom')">
+        <div class="cancel-fill" id="cancelFillCustom"></div>
+        ■ SEGURAR PARA CANCELAR
+      </button>
+      <div class="cancel-hint">Segure 2s para parar o ciclo imediatamente</div>
+    </div>
+  </div>
 
-            <!-- Botão principal -->
-            <div class="card">
-                <div class="card-title">Controle do Ciclo</div>
-                <div class="btn-cip-wrap">
+  <div class="card" id="customMonitor" style="display:none">
+    <div class="card-title">Execução em Andamento</div>
+    <div class="lbl">Etapa</div>
+    <div class="val-blue" id="cu-etapa">—</div>
+    <div class="prog-wrap"><div class="prog-bar" id="cuProg" style="width:0%"></div></div>
+    <div style="margin-top:10px" class="lbl">Procedimento</div>
+    <div class="val-orange" id="cu-proc">—</div>
+    <!-- Mini fila com item ativo destacado -->
+    <div style="margin-top:12px" class="lbl">Progresso da Fila</div>
+    <div class="fila-container" id="filaExec" style="pointer-events:none"></div>
+  </div>
 
-                    <button class="btn-cip blocked" id="btnCip" onpointerdown="holdStart()" onpointerup="holdEnd()"
-                        onpointerleave="holdEnd()">
-                        <!-- anel de hold -->
-                        <div class="ring" id="cipRing"></div>
+  <div class="err-banner" id="customErr"></div>
+</div>
 
-                        <!-- ícone play / stop -->
-                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path id="cipIcon" d="M5 3l14 9-14 9V3z" stroke="#8b949e" stroke-width="1.8"
-                                stroke-linejoin="round" fill="none" />
-                        </svg>
+<!-- ══════════ TELA: CONFIGURAÇÕES ══════════ -->
+<div class="screen" id="screen-config">
+  <div class="card">
+    <div class="card-title">Configurações do Ciclo CIP</div>
 
-                        <div class="btn-label" id="cipLabel">AGUARDANDO</div>
-                    </button>
+    <div class="cfg-section-title">Volumes de Solução</div>
+    <div class="cfg-row">
+      <label>Alcalina</label>
+      <input type="range" min="0" max="300" step="5" id="r-volAlc"
+             oninput="sv('volAlc',this.value,'mL')">
+      <span class="cfg-val" id="v-volAlc">75</span><span class="cfg-unit">mL</span>
+    </div>
+    <div class="cfg-row">
+      <label>Ácida</label>
+      <input type="range" min="0" max="300" step="5" id="r-volAcid"
+             oninput="sv('volAcid',this.value,'mL')">
+      <span class="cfg-val" id="v-volAcid">130</span><span class="cfg-unit">mL</span>
+    </div>
+    <div class="cfg-row">
+      <label>Sanitizante</label>
+      <input type="range" min="0" max="300" step="5" id="r-volSanit"
+             oninput="sv('volSanit',this.value,'mL')">
+      <span class="cfg-val" id="v-volSanit">0</span><span class="cfg-unit">mL</span>
+    </div>
 
-                    <div class="hold-hint" id="holdHint">Segure 2 s para iniciar o ciclo</div>
-                    <button class="btn-stop" id="btnStop" onclick="pararCiclo()">
-                        ■ PARAR CICLO
-                    </button>
-                </div>
-            </div>
+    <div class="cfg-divider">
+      <div class="cfg-section-title">Temperaturas Alvo</div>
+      <div class="cfg-row">
+        <label>Pré-enxágue</label>
+        <input type="range" min="20" max="80" id="r-tempPre"
+               oninput="sv('tempPre',this.value,'°C')">
+        <span class="cfg-val" id="v-tempPre">39</span><span class="cfg-unit">°C</span>
+      </div>
+      <div class="cfg-row">
+        <label>Alcalina</label>
+        <input type="range" min="20" max="85" id="r-tempAlc"
+               oninput="sv('tempAlc',this.value,'°C')">
+        <span class="cfg-val" id="v-tempAlc">39</span><span class="cfg-unit">°C</span>
+      </div>
+      <div class="cfg-row">
+        <label>Ácida</label>
+        <input type="range" min="20" max="80" id="r-tempAcid"
+               oninput="sv('tempAcid',this.value,'°C')">
+        <span class="cfg-val" id="v-tempAcid">39</span><span class="cfg-unit">°C</span>
+      </div>
+    </div>
 
-            <!-- Módulos (mini) -->
-            <div class="card">
-                <div class="card-title">Módulos</div>
-                <div class="modules-row">
-                    <div class="module-badge offline" id="badge2-ORDENHA">
-                        <div class="dot"></div>
-                        <div class="mod-name" style="font-size:.8rem">ORDENHA</div>
-                        <div class="mod-status">offline</div>
-                    </div>
-                    <div class="module-badge offline" id="badge2-MOTOR">
-                        <div class="dot"></div>
-                        <div class="mod-name" style="font-size:.8rem">MOTOR</div>
-                        <div class="mod-status">offline</div>
-                    </div>
-                </div>
-            </div>
+    <div class="cfg-divider">
+      <div class="cfg-section-title">Tempo de Circulação</div>
+      <div class="cfg-row">
+        <label>Duração</label>
+        <input type="range" min="1" max="60" id="r-tempoCirculacaoMin"
+               oninput="sv('tempoCirculacaoMin',this.value,'min')">
+        <span class="cfg-val" id="v-tempoCirculacaoMin">5</span><span class="cfg-unit">min</span>
+      </div>
+    </div>
+  </div>
 
-            <!-- Monitoramento em tempo real -->
-            <div class="card">
-                <div class="card-title">Monitoramento</div>
-                <div class="stage-block">
-                    <div>
-                        <div class="stage-label">Etapa do Ciclo</div>
-                        <div class="stage-value" id="cip-etapa">—</div>
-                        <div class="progress-wrap">
-                            <div class="progress-bar" id="cipProgress" style="width:0%"></div>
-                        </div>
-                    </div>
-                    <div style="margin-top:10px">
-                        <div class="stage-label">Procedimento Atual</div>
-                        <div class="proc-value" id="cip-proc">—</div>
-                    </div>
-                    <div style="margin-top:10px; display:flex; gap:32px;">
-                        <div>
-                            <div class="stage-label">Temperatura</div>
-                            <div class="temp-display">
-                                <div class="temp-value" style="font-size:1.8rem" id="cip-temp">--.-</div>
-                                <div class="temp-unit">°C</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+  <button class="btn-save" onclick="salvarConfig()">✔ SALVAR CONFIGURAÇÕES</button>
+  <div class="save-ok" id="saveOk">Configurações salvas!</div>
+</div>
 
-            <!-- Erro -->
-            <div class="error-banner" id="errorBanner"></div>
+</div><!-- .app -->
 
-        </div>
+<script>
+// ═══════════════════════════════════════════════
+//  ESTADO LOCAL
+// ═══════════════════════════════════════════════
+let S = { running:false, allReady:false, etapa:0, tipoCiclo:0,
+          filaCustom:[], filaCustomIdx:0 };
 
-        <!-- ══════════════════════════════════════════
-       TELA 3 — CONFIGURAÇÕES
-  ══════════════════════════════════════════ -->
-        <div class="screen" id="screen-config">
+const NOMES = ['','Pré-enxágue','Enxágue','Alcalina','Ácida','Sanitizante'];
+const FCLR  = ['','fi1','fi2','fi3','fi4','fi5'];
 
-            <div class="card">
-                <div class="card-title">Configurações do Ciclo CIP</div>
-                <div class="cfg-grid">
+// Fila do ciclo personalizado (local)
+let fila = [];
 
-                    <!-- VOLUMES -->
-                    <div>
-                        <div class="cfg-group-title">Volumes de Solução</div>
-                    </div>
-                    <div class="cfg-row">
-                        <label>Alcalina</label>
-                        <input type="range" min="0" max="300" step="5" id="r-volAlcalina"
-                            oninput="updVal('volAlcalina',this.value,'mL')">
-                        <span class="cfg-val" id="v-volAlcalina">90</span>
-                        <span class="cfg-unit">mL</span>
-                    </div>
-                    <div class="cfg-row">
-                        <label>Ácida</label>
-                        <input type="range" min="0" max="300" step="5" id="r-volAcida"
-                            oninput="updVal('volAcida',this.value,'mL')">
-                        <span class="cfg-val" id="v-volAcida">70</span>
-                        <span class="cfg-unit">mL</span>
-                    </div>
-                    <div class="cfg-row">
-                        <label>Sanitizante</label>
-                        <input type="range" min="0" max="300" step="5" id="r-volSanitizante"
-                            oninput="updVal('volSanitizante',this.value,'mL')">
-                        <span class="cfg-val" id="v-volSanitizante">150</span>
-                        <span class="cfg-unit">mL</span>
-                    </div>
+// ── Abas ──────────────────────────────────────
+function tab(id, btn) {
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('screen-'+id).classList.add('active');
+  btn.classList.add('active');
+}
 
-                    <!-- TEMPERATURAS -->
-                    <div class="cfg-section">
-                        <div class="cfg-group-title">Temperaturas Alvo</div>
-                    </div>
-                    <div class="cfg-row">
-                        <label>Alcalina</label>
-                        <input type="range" min="30" max="90" step="1" id="r-tempAlcalina"
-                            oninput="updVal('tempAlcalina',this.value,'°C')">
-                        <span class="cfg-val" id="v-tempAlcalina">75</span>
-                        <span class="cfg-unit">°C</span>
-                    </div>
-                    <div class="cfg-row">
-                        <label>Ácida</label>
-                        <input type="range" min="30" max="90" step="1" id="r-tempAcida"
-                            oninput="updVal('tempAcida',this.value,'°C')">
-                        <span class="cfg-val" id="v-tempAcida">45</span>
-                        <span class="cfg-unit">°C</span>
-                    </div>
-                    <div class="cfg-row">
-                        <label>Sanitizante</label>
-                        <input type="range" min="0" max="60" step="1" id="r-tempSanitizante"
-                            oninput="updVal('tempSanitizante',this.value,'°C')">
-                        <span class="cfg-val" id="v-tempSanitizante">0</span>
-                        <span class="cfg-unit">°C</span>
-                    </div>
+// ═══════════════════════════════════════════════
+//  SSE
+// ═══════════════════════════════════════════════
+const sse = new EventSource('/events');
+sse.addEventListener('status', e => {
+  try { const d = JSON.parse(e.data); updateUI(d.cip, d.espnow); } catch(_){}
+});
+sse.onerror = () => {
+  document.getElementById('dotLive').style.cssText='background:var(--red);box-shadow:0 0 6px var(--red)';
+};
+setInterval(()=>{
+  if(sse.readyState===2)
+    fetch('/api/status').then(r=>r.json()).then(d=>updateUI(d.cip,d.espnow));
+},4000);
 
-                    <!-- TEMPOS -->
-                    <div class="cfg-section">
-                        <div class="cfg-group-title">Tempos</div>
-                    </div>
-                    <div class="cfg-row">
-                        <label>Circulação</label>
-                        <input type="range" min="60" max="1200" step="30" id="r-tempoCirculacao"
-                            oninput="updVal('tempoCirculacao',this.value,'s')">
-                        <span class="cfg-val" id="v-tempoCirculacao">300</span>
-                        <span class="cfg-unit">s</span>
-                    </div>
-                    <div class="cfg-row">
-                        <label>Enxágue</label>
-                        <input type="range" min="30" max="600" step="30" id="r-tempoEnxague"
-                            oninput="updVal('tempoEnxague',this.value,'s')">
-                        <span class="cfg-val" id="v-tempoEnxague">120</span>
-                        <span class="cfg-unit">s</span>
-                    </div>
+// ═══════════════════════════════════════════════
+//  ATUALIZAR UI
+// ═══════════════════════════════════════════════
+function updateUI(cip, espnow) {
+  if (!cip||!espnow) return;
 
-                </div>
-            </div>
+  // Módulos
+  espnow.modules.forEach(m=>{
+    ['hbadge-','cbadge-'].forEach(p=>{
+      const el=document.getElementById(p+m.name);
+      if(!el)return;
+      el.className='mod-badge '+(m.active?'online':'offline');
+      el.querySelector('.mod-st').textContent=m.active?'online':'offline';
+    });
+  });
+  S.allReady=espnow.allReady;
 
-            <button class="btn-save" onclick="salvarConfig()">✔ SALVAR CONFIGURAÇÕES</button>
-            <div class="save-ok" id="saveOk">Configurações salvas!</div>
+  // Temperatura
+  const ts=(cip.temp>=0)?cip.temp.toFixed(1):'--.-';
+  ['h-temp','c-temp'].forEach(id=>document.getElementById(id).textContent=ts);
 
-        </div>
+  // Estado
+  S.running=cip.rodando; S.etapa=cip.etapa; S.tipoCiclo=cip.tipoCiclo;
+  S.filaCustom=cip.filaCustom||[]; S.filaCustomIdx=cip.filaCustomIdx||0;
 
-    </div><!-- .app -->
+  setText('h-etapa', cip.etapaNome||'Aguardando');
+  setText('h-proc',  cip.procNome ||'Sistema em repouso');
+  setText('c-etapa', cip.etapaNome||'—');
+  setText('c-proc',  cip.procNome ||'—');
+  setText('cu-etapa',cip.etapaNome||'—');
+  setText('cu-proc', cip.procNome ||'—');
 
-    <script>
-        // ═══════════════════════════════════════════════════════════════
-        //  ESTADO LOCAL
-        // ═══════════════════════════════════════════════════════════════
-        let state = {
-            cicloRodando: false,
-            allReady: false,
-            etapa: 0,
-            proc: 0,
-            temp: null,
-            erro: ''
-        };
+  const pct=Math.round((cip.etapa/6)*100);
+  setW('cProg',pct); setW('cuProg',pct);
 
-        // ═══════════════════════════════════════════════════════════════
-        //  ABAS
-        // ═══════════════════════════════════════════════════════════════
-        function showTab(id) {
-            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-            document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
-            document.getElementById('screen-' + id).classList.add('active');
-            event.target.classList.add('active');
-        }
+  // Erro
+  setErr('cipErr',   cip.erro);
+  setErr('customErr',cip.erro);
 
-        // ═══════════════════════════════════════════════════════════════
-        //  SSE — Recebe atualizações em tempo real
-        // ═══════════════════════════════════════════════════════════════
-        const evtSrc = new EventSource('/events');
+  // Botão CIP
+  updateBtnCip();
 
-        evtSrc.addEventListener('status', e => {
-            try {
-                const data = JSON.parse(e.data);
-                updateUI(data.cip, data.espnow);
-            } catch (_) { }
-        });
+  // Cancelar wrapper
+  const showCancel = S.running && S.tipoCiclo===1;
+  const showCustomCancel = S.running && S.tipoCiclo===2;
+  toggleClass('cipCancelWrap',    'visible', showCancel);
+  toggleClass('customCancelWrap', 'visible', showCustomCancel);
 
-        evtSrc.onerror = () => {
-            document.getElementById('dotLive').style.background = 'var(--red)';
-            document.getElementById('dotLive').style.boxShadow = '0 0 6px var(--red)';
-        };
+  // Monitor personalizado
+  const mon=document.getElementById('customMonitor');
+  if(mon) mon.style.display = (S.running && S.tipoCiclo===2) ? 'block':'none';
 
-        // Fallback: polling se SSE falhar
-        setInterval(() => {
-            if (evtSrc.readyState === 2) {   // CLOSED
-                fetch('/api/status').then(r => r.json()).then(d => updateUI(d.cip, d.espnow));
-            }
-        }, 3000);
+  // Fila em execução
+  renderFilaExec();
 
-        // ═══════════════════════════════════════════════════════════════
-        //  ATUALIZAÇÃO DA INTERFACE
-        // ═══════════════════════════════════════════════════════════════
-        function updateUI(cip, espnow) {
-            if (!cip || !espnow) return;
+  // Botão iniciar custom
+  const btnCust=document.getElementById('btnIniciarCustom');
+  if(btnCust) btnCust.disabled = (!S.allReady || S.running || fila.length===0);
+}
 
-            // ── Módulos ─────────────────────────────────────────────────
-            espnow.modules.forEach(m => {
-                ['badge-', 'badge2-'].forEach(prefix => {
-                    const badge = document.getElementById(prefix + m.name);
-                    if (!badge) return;
-                    badge.className = 'module-badge ' + (m.active ? 'online' : 'offline');
-                    badge.querySelector('.mod-status').textContent = m.active ? 'online' : 'offline';
-                });
-            });
-            state.allReady = espnow.allReady;
+function setText(id,v){const el=document.getElementById(id);if(el)el.textContent=v;}
+function setW(id,pct){const el=document.getElementById(id);if(el)el.style.width=pct+'%';}
+function setErr(id,msg){
+  const el=document.getElementById(id);if(!el)return;
+  if(msg&&msg.length>0){el.textContent='⚠ '+msg;el.classList.add('visible');}
+  else el.classList.remove('visible');
+}
+function toggleClass(id,cls,on){
+  const el=document.getElementById(id);if(el)el.classList.toggle(cls,on);
+}
 
-            // ── Temperatura ──────────────────────────────────────────────
-            const tempStr = (cip.temp >= 0) ? cip.temp.toFixed(1) : '--.-';
-            document.getElementById('home-temp').textContent = tempStr;
-            document.getElementById('cip-temp').textContent = tempStr;
+function updateBtnCip(){
+  const btn=document.getElementById('btnCip');
+  const lbl=document.getElementById('cipLbl');
+  const ico=document.getElementById('cipIco');
+  const hint=document.getElementById('cipHint');
+  if(!btn)return;
 
-            // ── Etapa / Procedimento ─────────────────────────────────────
-            state.cicloRodando = cip.rodando;
-            state.etapa = cip.etapa;
+  if(S.running && S.tipoCiclo===1){
+    btn.className='btn-cip running';
+    lbl.textContent='RODANDO';
+    ico.setAttribute('d','M6 6h4v12H6zm8 0h4v12h-4z');
+    hint.textContent='Ciclo CIP em execução';
+  } else if(!S.allReady){
+    btn.className='btn-cip blocked';
+    lbl.textContent='AGUARDANDO'; lbl.style.color='';
+    ico.setAttribute('d','M5 3l14 9-14 9V3z');
+    hint.textContent='Aguardando conexão dos módulos';
+  } else if(S.running){
+    btn.className='btn-cip blocked';
+    lbl.textContent='EM USO'; lbl.style.color='var(--muted)';
+    ico.setAttribute('d','M5 3l14 9-14 9V3z');
+    hint.textContent='Ciclo personalizado em execução';
+  } else {
+    btn.className='btn-cip idle';
+    lbl.textContent='INICIAR';
+    ico.setAttribute('d','M5 3l14 9-14 9V3z');
+    hint.textContent='Segure 2s para iniciar o ciclo CIP';
+  }
+}
 
-            document.getElementById('home-status').textContent = cip.etapaNome || 'Aguardando';
-            document.getElementById('home-proc').textContent = cip.procNome || 'Sistema em repouso';
-            document.getElementById('cip-etapa').textContent = cip.etapaNome || '—';
-            document.getElementById('cip-proc').textContent = cip.procNome || '—';
+// ═══════════════════════════════════════════════
+//  HOLD — INICIAR CIP (2s)
+// ═══════════════════════════════════════════════
+let holdCipT=null, holdCipRaf=null, holdCipMs=0;
+function holdCipStart(){
+  if(!S.allReady||S.running)return;
+  holdCipMs=performance.now();
+  document.getElementById('btnCip').classList.add('holding');
+  const ring=document.getElementById('cipRing');
+  function af(){
+    const d=Math.min(((performance.now()-holdCipMs)/2000)*360,360);
+    ring.style.transform=`rotate(${d-90}deg)`;
+    if(performance.now()-holdCipMs<2000)holdCipRaf=requestAnimationFrame(af);
+  }
+  holdCipRaf=requestAnimationFrame(af);
+  holdCipT=setTimeout(()=>{iniciarCIP();holdCipEnd();},2000);
+}
+function holdCipEnd(){
+  clearTimeout(holdCipT);cancelAnimationFrame(holdCipRaf);
+  const ring=document.getElementById('cipRing');
+  if(ring)ring.style.transform='rotate(-90deg)';
+  const btn=document.getElementById('btnCip');
+  if(btn)btn.classList.remove('holding');
+}
 
-            // Progresso aproximado (etapa 0–6)
-            const pct = Math.round((cip.etapa / 6) * 100);
-            document.getElementById('cipProgress').style.width = pct + '%';
+// ═══════════════════════════════════════════════
+//  HOLD — CANCELAR (2s)
+// ═══════════════════════════════════════════════
+let holdCancelT={cip:null,custom:null};
+let holdCancelRaf={cip:null,custom:null};
+function holdCancelStart(tipo){
+  const fillId = tipo==='cip'?'cancelFillCip':'cancelFillCustom';
+  const fill = document.getElementById(fillId);
+  const t0=performance.now();
+  function af(){
+    const pct=Math.min(((performance.now()-t0)/2000)*100,100);
+    if(fill)fill.style.width=pct+'%';
+    if(performance.now()-t0<2000)holdCancelRaf[tipo]=requestAnimationFrame(af);
+  }
+  holdCancelRaf[tipo]=requestAnimationFrame(af);
+  holdCancelT[tipo]=setTimeout(()=>{
+    cancelarCiclo(); holdCancelEnd(tipo);
+  },2000);
+}
+function holdCancelEnd(tipo){
+  clearTimeout(holdCancelT[tipo]); cancelAnimationFrame(holdCancelRaf[tipo]);
+  const fillId = tipo==='cip'?'cancelFillCip':'cancelFillCustom';
+  const fill=document.getElementById(fillId);
+  if(fill)fill.style.width='0%';
+}
 
-            // ── Erro ─────────────────────────────────────────────────────
-            const errBanner = document.getElementById('errorBanner');
-            if (cip.erro && cip.erro.length > 0) {
-                errBanner.textContent = '⚠ ' + cip.erro;
-                errBanner.classList.add('visible');
-            } else {
-                errBanner.classList.remove('visible');
-            }
+// ═══════════════════════════════════════════════
+//  HOLD — INICIAR CUSTOM (2s)
+// ═══════════════════════════════════════════════
+let holdCustomT=null, holdCustomRaf=null;
+function holdCustomStart(){
+  if(!S.allReady||S.running||fila.length===0)return;
+  const fill=document.getElementById('customFill');
+  const t0=performance.now();
+  function af(){
+    const pct=Math.min(((performance.now()-t0)/2000)*100,100);
+    if(fill)fill.style.width=pct+'%';
+    if(performance.now()-t0<2000)holdCustomRaf=requestAnimationFrame(af);
+  }
+  holdCustomRaf=requestAnimationFrame(af);
+  holdCustomT=setTimeout(()=>{ iniciarCustom(); holdCustomEnd(); },2000);
+}
+function holdCustomEnd(){
+  clearTimeout(holdCustomT); cancelAnimationFrame(holdCustomRaf);
+  const fill=document.getElementById('customFill');
+  if(fill)fill.style.width='0%';
+}
 
-            // ── Botão CIP ────────────────────────────────────────────────
-            updateBtnCip();
-        }
+// ═══════════════════════════════════════════════
+//  API CALLS
+// ═══════════════════════════════════════════════
+function iniciarCIP(){
+  fetch('/api/cip/iniciar',{method:'POST'})
+    .then(r=>r.json()).then(d=>{ if(!d.ok) alert('Erro: '+(d.msg||'?')); });
+}
+function cancelarCiclo(){
+  fetch('/api/cip/cancelar',{method:'POST'});
+}
+function iniciarCustom(){
+  fetch('/api/cip/custom',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({fila,salvar:false})
+  }).then(r=>r.json()).then(d=>{ if(!d.ok) alert('Erro: '+(d.msg||'?')); });
+}
 
-        function updateBtnCip() {
-            const btn = document.getElementById('btnCip');
-            const label = document.getElementById('cipLabel');
-            const icon = document.getElementById('cipIcon');
-            const stop = document.getElementById('btnStop');
-            const hint = document.getElementById('holdHint');
+// ═══════════════════════════════════════════════
+//  FILA DO CICLO PERSONALIZADO
+// ═══════════════════════════════════════════════
+function addEtapa(num, nome, cls){
+  if(fila.length>=10)return;
+  fila.push({num, nome, cls});
+  renderFila();
+}
 
-            if (state.cicloRodando) {
-                btn.className = 'btn-cip running';
-                label.textContent = 'RODANDO';
-                icon.setAttribute('d', 'M6 6h4v12H6zm8 0h4v12h-4z');  // ícone pausa
-                stop.classList.add('visible');
-                hint.textContent = 'Ciclo em execução';
-            } else if (!state.allReady) {
-                btn.className = 'btn-cip blocked';
-                label.textContent = 'AGUARDANDO';
-                icon.setAttribute('d', 'M5 3l14 9-14 9V3z');
-                stop.classList.remove('visible');
-                hint.textContent = 'Aguardando conexão dos módulos';
-            } else {
-                btn.className = 'btn-cip idle';
-                label.textContent = 'INICIAR';
-                icon.setAttribute('d', 'M5 3l14 9-14 9V3z');
-                stop.classList.remove('visible');
-                hint.textContent = 'Segure 2 s para iniciar o ciclo';
-            }
-        }
+function removeEtapa(idx){
+  fila.splice(idx,1);
+  renderFila();
+}
 
-        // ═══════════════════════════════════════════════════════════════
-        //  BOTÃO HOLD — 2 segundos para iniciar
-        // ═══════════════════════════════════════════════════════════════
-        let holdTimer = null;
-        let holdRaf = null;
-        let holdStart_ms = 0;
-        const HOLD_MS = 2000;
+function limparFila(){
+  fila=[];
+  renderFila();
+}
 
-        function holdStart() {
-            if (!state.allReady || state.cicloRodando) return;
-            holdStart_ms = performance.now();
+function salvarFila(){
+  if(fila.length===0)return;
+  const nums=fila.map(f=>f.num);
+  fetch('/api/cip/custom',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({fila:nums, salvar:true})
+  }).then(r=>r.json()).then(d=>{
+    if(d.ok){ showSaveOk('Fila salva na memória!'); }
+  });
+}
 
-            const ring = document.getElementById('cipRing');
-            document.getElementById('btnCip').classList.add('holding');
+function renderFila(){
+  const cont=document.getElementById('filaContainer');
+  const vazia=document.getElementById('filaVazia');
+  const count=document.getElementById('filaCount');
+  const btn=document.getElementById('btnIniciarCustom');
 
-            function animFrame() {
-                const elapsed = performance.now() - holdStart_ms;
-                const deg = Math.min((elapsed / HOLD_MS) * 360, 360);
-                ring.style.transform = `rotate(${deg - 90}deg)`;
-                ring.style.borderTopColor = 'var(--green)';
-                if (elapsed < HOLD_MS) holdRaf = requestAnimationFrame(animFrame);
-            }
-            holdRaf = requestAnimationFrame(animFrame);
+  // Remove itens existentes (não remove o filaVazia)
+  cont.querySelectorAll('.fila-item').forEach(el=>el.remove());
 
-            holdTimer = setTimeout(() => {
-                iniciarCiclo();
-                holdEnd();
-            }, HOLD_MS);
-        }
+  if(fila.length===0){
+    if(vazia)vazia.style.display='block';
+  } else {
+    if(vazia)vazia.style.display='none';
+    fila.forEach((f,i)=>{
+      const el=document.createElement('div');
+      el.className='fila-item '+f.cls;
+      el.innerHTML=`<span>${f.num}·${f.nome}</span><span class="fi-x">✕</span>`;
+      el.onclick=()=>removeEtapa(i);
+      cont.appendChild(el);
+    });
+  }
+  if(count)count.textContent=fila.length+' / 10';
+  if(btn)btn.disabled=(!S.allReady||S.running||fila.length===0);
+}
 
-        function holdEnd() {
-            clearTimeout(holdTimer); holdTimer = null;
-            cancelAnimationFrame(holdRaf);
-            const ring = document.getElementById('cipRing');
-            ring.style.transform = 'rotate(-90deg)';
-            document.getElementById('btnCip').classList.remove('holding');
-        }
+function renderFilaExec(){
+  const cont=document.getElementById('filaExec');
+  if(!cont||!S.running||S.tipoCiclo!==2)return;
+  cont.innerHTML='';
+  S.filaCustom.forEach((num,i)=>{
+    const cls=FCLR[num]||'';
+    const nome=NOMES[num]||'?';
+    const el=document.createElement('div');
+    el.className='fila-item '+cls;
+    if(i===S.filaCustomIdx) el.style.cssText='outline:2px solid white;outline-offset:1px';
+    el.textContent=num+'·'+nome;
+    cont.appendChild(el);
+  });
+}
 
-        // ═══════════════════════════════════════════════════════════════
-        //  API CALLS
-        // ═══════════════════════════════════════════════════════════════
-        function iniciarCiclo() {
-            fetch('/api/cip/iniciar', { method: 'POST' })
-                .then(r => r.json())
-                .then(d => {
-                    if (!d.ok) alert('Erro: ' + (d.msg || 'Falha ao iniciar'));
-                });
-        }
+// ═══════════════════════════════════════════════
+//  CONFIGURAÇÕES
+// ═══════════════════════════════════════════════
+const CFG_KEYS=['volAlc','volAcid','volSanit','tempPre','tempAlc','tempAcid','tempoCirculacaoMin'];
+let cfgLocal={};
 
-        function pararCiclo() {
-            if (!confirm('Parar o ciclo em andamento?')) return;
-            fetch('/api/cip/parar', { method: 'POST' });
-        }
+function sv(k,v){ cfgLocal[k]=parseInt(v); document.getElementById('v-'+k).textContent=v; }
 
-        // ═══════════════════════════════════════════════════════════════
-        //  CONFIGURAÇÕES
-        // ═══════════════════════════════════════════════════════════════
-        const cfgKeys = ['volAlcalina', 'volAcida', 'volSanitizante',
-            'tempAlcalina', 'tempAcida', 'tempSanitizante',
-            'tempoCirculacao', 'tempoEnxague'];
-        let cfgLocal = {};
+function carregarConfig(){
+  fetch('/api/config').then(r=>r.json()).then(cfg=>{
+    cfgLocal={...cfg};
+    CFG_KEYS.forEach(k=>{
+      const s=document.getElementById('r-'+k);
+      const v=document.getElementById('v-'+k);
+      if(s&&cfg[k]!==undefined)s.value=cfg[k];
+      if(v&&cfg[k]!==undefined)v.textContent=cfg[k];
+    });
+  });
+}
 
-        function updVal(key, val) {
-            cfgLocal[key] = parseInt(val);
-            document.getElementById('v-' + key).textContent = val;
-        }
+function salvarConfig(){
+  fetch('/api/config',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(cfgLocal)
+  }).then(r=>r.json()).then(d=>{ if(d.ok) showSaveOk('Configurações salvas!'); });
+}
 
-        function carregarConfig() {
-            fetch('/api/config').then(r => r.json()).then(cfg => {
-                cfgLocal = { ...cfg };
-                cfgKeys.forEach(k => {
-                    const slider = document.getElementById('r-' + k);
-                    if (slider) { slider.value = cfg[k]; }
-                    const display = document.getElementById('v-' + k);
-                    if (display) display.textContent = cfg[k];
-                });
-            });
-        }
+function showSaveOk(msg){
+  const el=document.getElementById('saveOk');
+  if(!el)return;
+  el.textContent=msg;
+  el.classList.add('visible');
+  setTimeout(()=>el.classList.remove('visible'),2500);
+}
 
-        function salvarConfig() {
-            fetch('/api/config', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(cfgLocal)
-            }).then(r => r.json()).then(d => {
-                if (d.ok) {
-                    const ok = document.getElementById('saveOk');
-                    ok.classList.add('visible');
-                    setTimeout(() => ok.classList.remove('visible'), 2000);
-                }
-            });
-        }
-
-        // ═══════════════════════════════════════════════════════════════
-        //  INICIALIZAÇÃO
-        // ═══════════════════════════════════════════════════════════════
-        window.addEventListener('DOMContentLoaded', () => {
-            carregarConfig();
-
-            // Leitura inicial via REST (antes do SSE chegar)
-            fetch('/api/status').then(r => r.json()).then(d => updateUI(d.cip, d.espnow)).catch(() => { });
-        });
-    </script>
+// ═══════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded',()=>{
+  carregarConfig();
+  fetch('/api/status').then(r=>r.json()).then(d=>updateUI(d.cip,d.espnow)).catch(()=>{});
+  // Carrega ciclo personalizado salvo
+  fetch('/api/ciclo-custom').then(r=>r.json()).then(arr=>{
+    if(arr&&arr.length>0){
+      fila=arr.map(n=>({num:n,nome:NOMES[n]||'?',cls:FCLR[n]||''}));
+      renderFila();
+    }
+  }).catch(()=>{});
+});
+</script>
 </body>
-
 </html>
