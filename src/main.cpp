@@ -195,6 +195,7 @@ void setup() {
   pinMode(vs_tm, OUTPUT);
   pinMode(ControleOrdenha, OUTPUT);
 
+  pinMode(LED_STATUS_SENSOR, OUTPUT);
   pinMode(boiaSolucao, INPUT_PULLUP);
   pinMode(boiaMistura, INPUT_PULLUP);
 
@@ -612,7 +613,7 @@ void alterarTempoCirculacao() {
 }
 
 /**
- * @brief define os valores das solucoes com valores salvos na EEPROM 10 (alcalina),11 (acida) e 12 (sanitizante)
+ * @brief carrega as temperaturas dos ciclos salvas na EEPROM (posicoes 13=pre-enxague, 14=alcalino, 15=acido)
  *
  */
 void pegarTempSolucaoEEPROM() {
@@ -632,9 +633,9 @@ void pegarTempSolucaoEEPROM() {
   else
     tempAcidPersonalizado = 55;
 
-  //tempPreEnxague = tempPreEnxaguePersonalizado;
-  //tempAlc = tempAlcPersonalizado;
-  //tempAcid = tempAcidPersonalizado;
+  tempPreEnxague = tempPreEnxaguePersonalizado;
+  tempAlc = tempAlcPersonalizado;
+  tempAcid = tempAcidPersonalizado;
 }
 
 /**
@@ -944,8 +945,9 @@ void salvarCicloPersonalizadoNaEEPROM() {
 /**
  * @brief enche o tanque de agua
  *
- * @param resistencia 1 - liga resistencia | 0 - desliga resistencia
- * @param tanque valvula a ser alterada de posicao
+ * @param resistencia 1 - liga resistencia apos encher | 0 - mantem desligada
+ * @param tanque valvula solenoide responsavel por encher o tanque
+ * @param boia pino da boia que indica tanque cheio
  */
 void encherTanque(uint8_t resistencia, uint8_t tanque, uint8_t boia) {
   wdt_reset();
@@ -1019,10 +1021,9 @@ bool controlarTemperatura(float tempSolucao) {
 }
 
 /**
- * @brief despejando agua no sistema
+ * @brief aquece a agua ate a temperatura alvo e aciona a succao para esvaziar o tanque
  *
- * @param tempSolucao temperatura dos ciclos
- * @param tanque pino da solenoide responsavel por encher o tanque
+ * @param tempSolucao temperatura alvo em graus Celsius
  */
 void esvaziarTanque(float tempSolucao)  // implementar duas funcoes, do tanque de mistura e de solucao
 {
@@ -1071,10 +1072,10 @@ void esvaziarTanque(float tempSolucao)  // implementar duas funcoes, do tanque d
 }
 
 /**
- * @brief controle da injecao de aquecimento na agua
+ * @brief injeta solucao quimica (base, acido ou sanitizante) via bomba peristaltica
  *
- * @param solucao_ml a ser adicionada
- * @param relay a ser ativado => 1 - Base || 2 - Acido || 3 - Sanitizante
+ * @param solucao_ml volume em mL a ser adicionado
+ * @param relay bomba a ser ativada => 1 - Base || 2 - Acido || 3 - Sanitizante
  */
 void adicionarSolucao(float solucao_ml, uint8_t relay) {
   wdt_reset();
@@ -1301,11 +1302,11 @@ void rotinaSanitizante() {
 }
 
 /**
- * @brief quantidade de aquecimento a ser despejada
- * levando em consideração o volume do tanque
+ * @brief calcula o tempo de acionamento da bomba para despejar o volume de solucao desejado
+ * levando em consideracao o volume do tanque e o fluxo da bomba
  *
- * @param solucao
- * @return tempo(ms)
+ * @param solucao concentracao em mL/L a ser adicionada
+ * @return tempo em ms
  */
 float calcSolucao(float solucao) {
   // A dosagem total de produto referente a solução por litro e o volume do tanque.
@@ -1330,9 +1331,9 @@ float tempAgua() {
 /**
  * @brief controle das tres bombas peristalticas HIGH - Desativado || LOW - Ativado
  *
- * @param volAcid bomba acida
- * @param volAlc bomba alcalina
- * @param volSanit bomba sanitizante
+ * @param estadoAlc bomba alcalina
+ * @param estadoAcid bomba acida
+ * @param estadoSanit bomba sanitizante
  */
 void estadoBombas(uint8_t estadoAlc, uint8_t estadoAcid, uint8_t estadoSanit) {
   digitalWrite(relayAlc, estadoAlc);
@@ -1352,14 +1353,14 @@ void printOpcoesLCD(String linha0, String linha1) {
   if (interromper == true) {
     lcd.print("*");
   } else {
-    lcd.print("");
+    lcd.print(" ");
   }
 
   lcd.setCursor(15, 1);
   if (statusSensorTemperatura == false) {
     lcd.print("!");
   } else {
-    lcd.print("");
+    lcd.print(" ");
   }
 
   lcd.setCursor(requiredOffset(linha0), 0);
