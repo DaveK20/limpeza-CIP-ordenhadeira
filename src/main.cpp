@@ -1379,9 +1379,8 @@ void rotinaSolucao(uint8_t solucao, float volSolucao, uint8_t tempSolucao)
     lcd.clear();
     printOpcoesLCD("Posicionando", "vs_vazao/ciclo");
     safeDelay(tempoPosicionamentoValvula);
-    adicionarSolucao(volSolucao, solucao); // adicionar solucao
-    encherTanque(1, vs_ts, boiaSolucao);   // adicionar agua
-    esvaziarTanque(tempSolucao);           // liberar apos atingir temperatura
+    encherTanque(1, vs_ts, boiaSolucao); // adicionar e aquecer somente agua limpa (resistencia nunca toca produto quimico)
+    esvaziarTanque(tempSolucao);         // liberar apos atingir temperatura
     lcd.clear();
     printOpcoesLCD("Posicionando", "vs_ciclo");
     digitalWrite(vs_ciclo, HIGH); // puxando do tanque de mistura
@@ -1390,6 +1389,9 @@ void rotinaSolucao(uint8_t solucao, float volSolucao, uint8_t tempSolucao)
 
     digitalWrite(ControleOrdenha, HIGH);
     Serial.println("ativando succao");
+
+    adicionarSolucao(volSolucao, solucao); // despeja a solucao na linha, diluindo conforme a agua e succionada
+
     Serial.println("circulando solucao");
     lcd.clear();
 
@@ -1431,17 +1433,28 @@ void rotinaSanitizante()
     lcd.clear();
     printOpcoesLCD("Rotina", "SANITIZANTE");
     safeDelay(2000);
-    encherTanque(0, vs_ts, boiaSolucao); // adicionar agua
+    encherTanque(0, vs_ts, boiaSolucao); // adicionar somente agua limpa
     lcd.clear();
     printOpcoesLCD("Posicionando", "vs_ciclo");
     safeDelay(2000);
     digitalWrite(vs_ciclo, LOW);           // puxando do tanque de aquecimento
     safeDelay(tempoPosicionamentoValvula); // tempo para as valvulas se posicionarem
-    adicionarSolucao(volSanit, 3);         // adicionar solucao
+
+    Serial.println("ativando succao da ordenha");
+    lcd.clear();
+    printOpcoesLCD("Ativando succao", "ordenhadeira");
+    digitalWrite(ControleOrdenha, HIGH);
+
+    adicionarSolucao(volSanit, 3); // despeja o sanitizante na linha, diluindo conforme a agua e succionada
+
     lcd.clear();
     printOpcoesLCD("Despejando", "para fora");
+    safeDelay(tempoEsvaziarTanque);
+
+    digitalWrite(ControleOrdenha, LOW);
+    lcd.clear();
+    printOpcoesLCD("Agua", "despejada");
     safeDelay(2000);
-    esvaziarTanque(-1); // liberar apos atingir temperatura
   }
 }
 
