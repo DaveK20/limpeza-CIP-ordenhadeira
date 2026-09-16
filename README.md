@@ -230,9 +230,29 @@ cd SEU_REPO
 
 ```
 cip-ordenhadeira/
+├── include/
+│   ├── Config.h            # Pinagem, enderecos de EEPROM e temporizacoes
+│   ├── Globals.h           # Estado compartilhado (volumes, temperaturas, flags)
+│   ├── Utils.h             # safeDelay (delay com watchdog)
+│   ├── Display.h           # Controle do LCD I2C
+│   ├── TemperatureSensor.h # Leitura do DS18B20 e controle de temperatura
+│   ├── Actuators.h         # Reles, bombas, valvulas e tanques
+│   ├── Storage.h           # Persistencia na EEPROM
+│   ├── CleaningCycle.h     # Rotinas do ciclo CIP e interrupcao
+│   ├── CustomCycle.h       # Ciclo de limpeza personalizado pelo usuario
+│   └── Menu.h              # Navegacao por botoes no painel LCD
 ├── src/
-│   └── main.cpp          # Código principal (~1386 linhas)
-├── platformio.ini         # Configuração do projeto
+│   ├── main.cpp            # setup() e loop() — ponto de entrada
+│   ├── Globals.cpp
+│   ├── Utils.cpp
+│   ├── Display.cpp
+│   ├── TemperatureSensor.cpp
+│   ├── Actuators.cpp
+│   ├── Storage.cpp
+│   ├── CleaningCycle.cpp
+│   ├── CustomCycle.cpp
+│   └── Menu.cpp
+├── platformio.ini          # Configuração do projeto
 └── README.md
 ```
 
