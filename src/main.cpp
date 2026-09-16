@@ -1204,53 +1204,103 @@ void esvaziarTanque(float tempSolucao) // implementar duas funcoes, do tanque de
 }
 
 /**
- * @brief injeta solucao quimica (base, acido ou sanitizante) via bomba peristaltica
+ * @brief injeta solucao quimica (base, acido ou sanitizante) via bomba peristaltica,
+ * dosando o volume aos poucos ao longo de toda a duracao informada, para que a solucao
+ * va sendo despejada conforme a agua e succionada, ao inves de tudo de uma vez
  *
  * @param solucao_ml volume em mL a ser adicionado
  * @param relay bomba a ser ativada => 1 - Base || 2 - Acido || 3 - Sanitizante
+ * @param duracaoTotal tempo total (ms) em que a agua estara sendo succionada, ao longo do qual a dosagem sera distribuida
  */
-void adicionarSolucao(float solucao_ml, uint8_t relay)
+void adicionarSolucao(float solucao_ml, uint8_t relay, unsigned long duracaoTotal)
 {
   wdt_reset();
-  if (interromper == false)
+  if (interromper)
+    return;
+
+  Serial.println("========== ADICIONAR SOLUCAO ==========");
+  lcd.clear();
+
+  Serial.print("Dosando solucao ");
+
+  switch (relay)
   {
-    Serial.println("========== ADICIONAR SOLUCAO ==========");
-    lcd.clear();
+  case 1:
+    printOpcoesLCD("Dosando", "base");
+    Serial.println("base");
+    break;
 
-    Serial.print("Adicionando solucao ");
+  case 2:
+    printOpcoesLCD("Dosando", "acido");
+    Serial.println("acida");
+    break;
 
-    switch (relay)
-    {
-    case 1:
-      printOpcoesLCD("Adicionando", "base");
-      Serial.println("base");
-      estadoBombas(LOW, HIGH, HIGH);
-      break;
+  case 3:
+    printOpcoesLCD("Dosando", "sanitizante");
+    Serial.println("sanitizante");
+    break;
 
-    case 2:
-      printOpcoesLCD("Adicionando", "acido");
-      Serial.println("acida");
-      estadoBombas(HIGH, LOW, HIGH);
-      break;
-
-    case 3:
-      printOpcoesLCD("Adicionando", "sanitizante");
-      Serial.println("sanitizante");
-      estadoBombas(HIGH, HIGH, LOW);
-      break;
-
-    default:
-      printOpcoesLCD("Solucao", "inexistente");
-      break;
-    }
-    Serial.println(calcSolucao(solucao_ml));
-    safeDelay(calcSolucao(solucao_ml)); // calculo do tempo de despejo da solucao
-    estadoBombas(HIGH, HIGH, HIGH);
-    Serial.println("Solucao Adicionada!");
-    lcd.clear();
-    printOpcoesLCD("Solucao", "despejada");
-    safeDelay(2000);
+  default:
+    printOpcoesLCD("Solucao", "inexistente");
+    Serial.println("===============================");
+    return;
   }
+
+  unsigned long tempoBomba = (unsigned long)calcSolucao(solucao_ml); // tempo total de acionamento da bomba para dosar o volume
+  Serial.print("Tempo de bomba necessario (ms): ");
+  Serial.println(tempoBomba);
+
+  if (tempoBomba >= duracaoTotal)
+  {
+    // nao ha tempo de succao suficiente para espacar a dosagem: mantem a bomba ligada continuamente
+    estadoBombas(relay == 1 ? LOW : HIGH, relay == 2 ? LOW : HIGH, relay == 3 ? LOW : HIGH);
+    safeDelay(tempoBomba);
+    estadoBombas(HIGH, HIGH, HIGH);
+  }
+  else
+  {
+    const unsigned long periodoPulso = 1000; // granularidade da dosagem (ms)
+    unsigned long tempoDecorrido = 0;
+    unsigned long tempoBombaAcumulado = 0;
+
+    while (tempoDecorrido < duracaoTotal)
+    {
+      wdt_reset();
+      if (interromper)
+        break;
+
+      unsigned long restante = duracaoTotal - tempoDecorrido;
+      unsigned long periodo = (restante < periodoPulso) ? restante : periodoPulso;
+
+      // fracao do tempo de bomba proporcional a este periodo, sem ultrapassar o total ja calculado
+      unsigned long tempoBombaRestante = tempoBomba - tempoBombaAcumulado;
+      unsigned long tempoBombaNestePeriodo = (unsigned long)((float)tempoBomba * periodo / duracaoTotal);
+      if (tempoBombaNestePeriodo > tempoBombaRestante)
+        tempoBombaNestePeriodo = tempoBombaRestante;
+
+      if (tempoBombaNestePeriodo > 0)
+      {
+        estadoBombas(relay == 1 ? LOW : HIGH, relay == 2 ? LOW : HIGH, relay == 3 ? LOW : HIGH);
+        safeDelay(tempoBombaNestePeriodo);
+      }
+
+      if (periodo > tempoBombaNestePeriodo)
+      {
+        estadoBombas(HIGH, HIGH, HIGH);
+        safeDelay(periodo - tempoBombaNestePeriodo);
+      }
+
+      tempoBombaAcumulado += tempoBombaNestePeriodo;
+      tempoDecorrido += periodo;
+    }
+
+    estadoBombas(HIGH, HIGH, HIGH);
+  }
+
+  Serial.println("Solucao Adicionada!");
+  lcd.clear();
+  printOpcoesLCD("Solucao", "despejada");
+  safeDelay(2000);
   Serial.println("===============================");
 }
 
@@ -1390,7 +1440,7 @@ void rotinaSolucao(uint8_t solucao, float volSolucao, uint8_t tempSolucao)
     digitalWrite(ControleOrdenha, HIGH);
     Serial.println("ativando succao");
 
-    adicionarSolucao(volSolucao, solucao); // despeja a solucao na linha, diluindo conforme a agua e succionada
+    adicionarSolucao(volSolucao, solucao, tempoEsvaziarTanque); // dosa a solucao aos poucos, conforme a agua e succionada
 
     Serial.println("circulando solucao");
     lcd.clear();
@@ -1445,11 +1495,7 @@ void rotinaSanitizante()
     printOpcoesLCD("Ativando succao", "ordenhadeira");
     digitalWrite(ControleOrdenha, HIGH);
 
-    adicionarSolucao(volSanit, 3); // despeja o sanitizante na linha, diluindo conforme a agua e succionada
-
-    lcd.clear();
-    printOpcoesLCD("Despejando", "para fora");
-    safeDelay(tempoEsvaziarTanque);
+    adicionarSolucao(volSanit, 3, tempoEsvaziarTanque); // dosa o sanitizante aos poucos, conforme a agua e succionada
 
     digitalWrite(ControleOrdenha, LOW);
     lcd.clear();
